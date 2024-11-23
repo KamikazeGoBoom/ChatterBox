@@ -1,0 +1,78 @@
+﻿@{
+    ViewData["Title"] = "Chat";
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    Chat
+                </div>
+                <div class="card-body">
+                    <div id="messagesList" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="messageInput" class="form-control" placeholder="Type your message...">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" id="sendButton">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/microsoft/signalr/dist/browser/signalr.js"></script>
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/chatHub")
+            .withAutomaticReconnect()
+            .build();
+
+        // Start the connection
+        connection.start()
+            .then(() => {
+                console.log("Connected to SignalR hub");
+                document.getElementById("sendButton").disabled = false;
+            })
+            .catch(err => console.error(err));
+
+        // Handle receiving messages
+        connection.on("ReceiveMessage", function (message) {
+            const messagesList = document.getElementById("messagesList");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("alert", "alert-info", "mb-2");
+            messageDiv.textContent = `${message.senderId}: ${message.content}`;
+            messagesList.appendChild(messageDiv);
+            messagesList.scrollTop = messagesList.scrollHeight;
+        });
+
+        // Send message when button is clicked
+        document.getElementById("sendButton").addEventListener("click", sendMessage);
+
+        // Also send message when Enter key is pressed
+        document.getElementById("messageInput").addEventListener("keypress", function (event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const messageInput = document.getElementById("messageInput");
+            const message = messageInput.value.trim();
+
+            if (message) {
+                // For testing, we'll send to a hardcoded receiver ID
+                connection.invoke("SendMessage", "testUser", message)
+                    .catch(function (err) {
+                        console.error(err);
+                    });
+
+                messageInput.value = "";
+            }
+        }
+    </script>
+}
