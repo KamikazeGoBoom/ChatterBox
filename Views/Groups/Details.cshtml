@@ -1,0 +1,256 @@
+﻿@model ChatterBox.Models.Group
+
+@{
+    ViewData["Title"] = "Group Details";
+}
+
+<div class="container">
+    <div class="row">
+        <!-- Group Info -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Group Information</h5>
+                    @if (Model.CreatedById == ViewBag.CurrentUserId)
+                    {
+                        <div class="btn-group">
+                            <a asp-action="Edit" asp-route-id="@Model.GroupId"
+                               class="btn btn-sm btn-outline-primary">Edit</a>
+                            <a asp-action="Delete" asp-route-id="@Model.GroupId"
+                               class="btn btn-sm btn-outline-danger">Delete</a>
+                        </div>
+                    }
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title">@Model.Name</h6>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            Created by: @Model.CreatedBy?.UserName<br />
+                            Created: @Model.CreatedAt.ToString("MMM dd, yyyy")<br />
+                            @(Model.IsPrivate ? "Private Group" : "Public Group")
+                        </small>
+                    </p>
+
+                    @if (!ViewBag.IsMember)
+                    {
+                        <form asp-action="Join" asp-route-id="@Model.GroupId" method="post">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-primary w-100">Join Group</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form asp-action="Leave" asp-route-id="@Model.GroupId" method="post">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-danger w-100">Leave Group</button>
+                        </form>
+                    }
+                </div>
+            </div>
+
+            <!-- Members List -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Members (@Model.Members?.Count)</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var member in Model.Members ?? Enumerable.Empty<GroupMember>())
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                @member.User?.UserName
+                                <span class="badge bg-primary">@member.Role</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Group Chat</h5>
+                </div>
+                <div class="card-body">
+                    <div id="messagesList" style="height: 400px; overflow-y: auto;" class="mb-3">
+                        @foreach (var message in ViewBag.Messages ?? Enumerable.Empty<Message>())
+                        {
+                            <div class="message mb-2 @(message.SenderId == ViewBag.CurrentUserId ? "text-end" : "")">
+                                <small class="text-muted">@message.Sender?.UserName</small>
+                                <div class="@(message.SenderId == ViewBag.CurrentUserId ? "bg-primary text-white" : "bg-light")
+                                     d-inline-block p-2 rounded">
+                                    @message.Content
+                                </div>
+                                <small class="text-muted">@message.SentAt.ToString("HH:mm")</small>
+                            </div>
+                        }
+                    </div>
+
+                    @if (ViewBag.IsMember)
+                    {
+                        <div class="input-group">
+                            <input type="text" id="messageInput" class="form-control"
+                                   placeholder="Type your message...">
+                            <button class="btn btn-primary" type="button" id="sendButton" disabled>Send</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="connectionStatus" class="alert alert-warning" style="display: none; position: fixed; bottom: 20px; right: 20px;">
+    Reconnecting...
+</div>
+
+@section Scripts {
+    <script src="~/lib/microsoft/signalr/dist/browser/signalr.js"></script>
+    <script>
+        const groupId = @Model.GroupId;
+        let retryCount = 0;
+        const maxRetries = 5;
+        let isConnected = false;
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/chatHub")
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        const sendButton = document.getElementById("sendButton");
+        const messageInput = document.getElementById("messageInput");
+        const connectionStatus = document.getElementById("connectionStatus");
+        const messagesList = document.getElementById("messagesList");
+
+        // Update UI based on connection state
+        function updateConnectionState(isConnected) {
+            if (sendButton) {
+                sendButton.disabled = !isConnected;
+            }
+            connectionStatus.style.display = isConnected ? "none" : "block";
+        }
+
+        async function startConnection() {
+            try {
+                await connection.start();
+                console.log("Connected to SignalR hub");
+                await connection.invoke("JoinGroup", groupId);
+                isConnected = true;
+                updateConnectionState(true);
+                retryCount = 0;
+            } catch (err) {
+                console.error("SignalR Connection Error: ", err);
+                isConnected = false;
+                updateConnectionState(false);
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    setTimeout(startConnection, 5000);
+                }
+            }
+        }
+
+        // Connection event handlers
+        connection.onclose(async () => {
+            isConnected = false;
+            updateConnectionState(false);
+            console.log("Connection closed");
+            await startConnection();
+        });
+
+        connection.onreconnecting(() => {
+            isConnected = false;
+            updateConnectionState(false);
+            console.log("Attempting to reconnect...");
+        });
+
+        connection.onreconnected(async () => {
+            isConnected = true;
+            updateConnectionState(true);
+            console.log("Reconnected");
+            await connection.invoke("JoinGroup", groupId);
+        });
+
+        // Message handling
+        connection.on("ReceiveGroupMessage", function (message) {
+            const isCurrentUser = message.senderId === '@ViewBag.CurrentUserId';
+
+            const messageDiv = document.createElement("div");
+            messageDiv.className = `message mb-2 ${isCurrentUser ? "text-end" : ""}`;
+
+            const content = document.createElement("div");
+            content.className = `${isCurrentUser ? "bg-primary text-white" : "bg-light"} d-inline-block p-2 rounded`;
+            content.textContent = message.content;
+
+            messageDiv.innerHTML = `
+                <small class="text-muted">${message.senderName}</small>
+            `;
+            messageDiv.appendChild(content);
+            messageDiv.innerHTML += `
+                <small class="text-muted">${new Date(message.sentAt).toLocaleTimeString()}</small>
+            `;
+
+            messagesList.appendChild(messageDiv);
+            messagesList.scrollTop = messagesList.scrollHeight;
+        });
+
+        // Message sending
+        async function sendMessage() {
+            if (!isConnected) {
+                alert("Not connected. Please wait for reconnection.");
+                return;
+            }
+
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            try {
+                await connection.invoke("SendGroupMessage", groupId, message);
+                messageInput.value = "";
+            } catch (err) {
+                console.error("Error sending message:", err);
+                alert("Failed to send message. Please try again.");
+            }
+        }
+
+        // Event listeners
+        if (sendButton) {
+            sendButton.addEventListener("click", sendMessage);
+        }
+
+        if (messageInput) {
+            messageInput.addEventListener("keypress", function (e) {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+
+        // Auto-scroll
+        function scrollToBottom() {
+            messagesList.scrollTop = messagesList.scrollHeight;
+        }
+
+        // Initial connection
+        startConnection().then(scrollToBottom);
+
+        // Cleanup
+        window.addEventListener('beforeunload', async () => {
+            if (isConnected) {
+                try {
+                    await connection.invoke("LeaveGroup", groupId);
+                    await connection.stop();
+                } catch (err) {
+                    console.error("Error during cleanup:", err);
+                }
+            }
+        });
+
+        // Keep scroll position at bottom when new messages arrive
+        const observer = new MutationObserver(scrollToBottom);
+        observer.observe(messagesList, { childList: true });
+    </script>
+}

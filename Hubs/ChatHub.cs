@@ -49,6 +49,17 @@ namespace ChatterBox.Hubs
                             .SendAsync("UserConnected", userId);
                     }
                 }
+
+                // Join all groups the user is a member of
+                var userGroups = await _context.GroupMembers
+                    .Where(gm => gm.UserId == userId)
+                    .Select(gm => gm.GroupId)
+                    .ToListAsync();
+
+                foreach (var groupId in userGroups)
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, groupId.ToString());
+                }
             }
             await base.OnConnectedAsync();
         }
@@ -81,10 +92,22 @@ namespace ChatterBox.Hubs
                             .SendAsync("UserDisconnected", userId);
                     }
                 }
+
+                // Leave all groups
+                var userGroups = await _context.GroupMembers
+                    .Where(gm => gm.UserId == userId)
+                    .Select(gm => gm.GroupId)
+                    .ToListAsync();
+
+                foreach (var groupId in userGroups)
+                {
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupId.ToString());
+                }
             }
             await base.OnDisconnectedAsync(exception);
         }
 
+        // Direct Message Methods
         public async Task SendMessage(string receiverId, string content)
         {
             var senderId = Context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -92,7 +115,6 @@ namespace ChatterBox.Hubs
             {
                 var sender = await _userManager.FindByIdAsync(senderId);
 
-                // Save message to database
                 var message = new Message
                 {
                     SenderId = senderId,
@@ -117,15 +139,72 @@ namespace ChatterBox.Hubs
                     IsRead = false
                 };
 
-                // Send to receiver if online
                 if (_userConnectionMap.TryGetValue(receiverId, out string connectionId))
                 {
                     await Clients.Client(connectionId).SendAsync("ReceiveMessage", messageData);
                 }
 
-                // Send back to sender for confirmation
                 await Clients.Caller.SendAsync("MessageSent", messageData);
             }
+        }
+
+        // Group Message Methods
+        public async Task JoinGroup(int groupId)
+        {
+            var userId = Context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return;
+
+            // Verify user is a member of the group
+            var isMember = await _context.GroupMembers
+                .AnyAsync(gm => gm.GroupId == groupId && gm.UserId == userId);
+
+            if (isMember)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, groupId.ToString());
+            }
+        }
+
+        public async Task LeaveGroup(int groupId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupId.ToString());
+        }
+
+        public async Task SendGroupMessage(int groupId, string content)
+        {
+            var userId = Context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return;
+
+            var sender = await _userManager.FindByIdAsync(userId);
+            if (sender == null) return;
+
+            // Verify user is a member of the group
+            var isMember = await _context.GroupMembers
+                .AnyAsync(gm => gm.GroupId == groupId && gm.UserId == userId);
+
+            if (!isMember) return;
+
+            var message = new Message
+            {
+                SenderId = userId,
+                GroupId = groupId,
+                Content = content,
+                SentAt = DateTime.UtcNow,
+                IsRead = false,
+                IsDeleted = false
+            };
+
+            _context.Messages.Add(message);
+            await _context.SaveChangesAsync();
+
+            await Clients.Group(groupId.ToString()).SendAsync("ReceiveGroupMessage", new
+            {
+                MessageId = message.MessageId,
+                SenderId = userId,
+                SenderName = sender.UserName,
+                GroupId = groupId,
+                Content = content,
+                SentAt = message.SentAt
+            });
         }
 
         public async Task UpdateStatus(string status)
@@ -139,7 +218,6 @@ namespace ChatterBox.Hubs
                     user.Status = status;
                     await _userManager.UpdateAsync(user);
 
-                    // Notify contacts about status update
                     var contacts = await _context.Contacts
                         .Where(c => c.ContactUserId == userId)
                         .Select(c => c.UserId)
@@ -175,6 +253,28 @@ namespace ChatterBox.Hubs
                         await Clients.Client(connectionId)
                             .SendAsync("MessageRead", messageId);
                     }
+                }
+            }
+        }
+
+        public async Task MarkGroupMessageAsRead(int messageId)
+        {
+            var userId = Context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return;
+
+            var message = await _context.Messages
+                .FirstOrDefaultAsync(m => m.MessageId == messageId);
+
+            if (message != null && !message.IsRead)
+            {
+                message.IsRead = true;
+                await _context.SaveChangesAsync();
+
+                var groupId = message.GroupId;
+                if (groupId.HasValue)
+                {
+                    await Clients.Group(groupId.ToString())
+                        .SendAsync("GroupMessageRead", messageId, userId);
                 }
             }
         }
