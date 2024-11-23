@@ -31,6 +31,29 @@ namespace ChatterBox.Controllers
             return View(contacts);
         }
 
+        public async Task<IActionResult> GetContacts()
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            var contacts = await _context.Contacts
+                .Include(c => c.ContactUser)
+                .Where(c => c.UserId == currentUser.Id && !c.IsBlocked)
+                .Select(c => new
+                {
+                    id = c.ContactUser.Id,
+                    userName = c.ContactUser.UserName,
+                    status = c.ContactUser.Status
+                })
+                .ToListAsync();
+
+            return Json(contacts);
+        }
+
+        public async Task<IActionResult> GetUser(string id)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            return Json(new { id = user.Id, userName = user.UserName, status = user.Status });
+        }
+
         [HttpGet]
         public async Task<IActionResult> Search(string searchTerm)
         {

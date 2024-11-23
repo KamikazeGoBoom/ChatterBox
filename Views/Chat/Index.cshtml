@@ -23,15 +23,16 @@
                     Online Users
                 </div>
                 <div class="card-body">
-                    <ul id="onlineUsersList" class="list-group">
-                    </ul>
+                    <div id="onlineUsersList" class="list-group">
+                        <!-- Users will be populated here -->
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-9">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    Chat Messages
+                    <span>Chat Messages</span>
                     <span id="selectedUserName" class="text-muted"></span>
                 </div>
                 <div class="card-body">
@@ -56,6 +57,7 @@
         // Get selected user ID from URL
         const urlParams = new URLSearchParams(window.location.search);
         const selectedUserId = urlParams.get('userId');
+        let currentUserName = '';
 
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/chatHub")
@@ -66,38 +68,102 @@
         connection.start()
             .then(() => {
                 console.log("Connected to SignalR hub");
+                // Load online users initially
+                loadOnlineUsers();
+
                 if (selectedUserId) {
                     document.getElementById("messageInput").disabled = false;
                     document.getElementById("sendButton").disabled = false;
-                    // Load user info and previous messages
                     loadUserInfo(selectedUserId);
                     loadPreviousMessages(selectedUserId);
                 }
             })
             .catch(err => console.error(err));
 
-        // Handle receiving messages
-        connection.on("ReceiveMessage", function (message) {
+        // Load online users
+        async function loadOnlineUsers() {
+            try {
+                const response = await fetch('/Contacts/GetContacts');
+                const contacts = await response.json();
+                updateOnlineUsersList(contacts);
+            } catch (error) {
+                console.error('Error loading online users:', error);
+            }
+        }
+
+        function updateOnlineUsersList(users) {
+            const onlineUsersList = document.getElementById('onlineUsersList');
+            onlineUsersList.innerHTML = '';
+
+            users.forEach(user => {
+                const userElement = document.createElement('a');
+                userElement.href = `#`;
+                userElement.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                userElement.onclick = () => startChat(user.id);
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = user.userName;
+
+                const statusBadge = document.createElement('span');
+                statusBadge.id = `status-${user.id}`;
+                statusBadge.className = `badge ${user.status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+                statusBadge.textContent = user.status || 'Offline';
+
+                userElement.appendChild(nameSpan);
+                userElement.appendChild(statusBadge);
+                onlineUsersList.appendChild(userElement);
+            });
+        }
+
+        function startChat(userId) {
+            window.location.href = `/Chat?userId=${userId}`;
+        }
+
+        function appendMessage(message, isReceived) {
             const messagesList = document.getElementById("messagesList");
             const messageDiv = document.createElement("div");
-            const isReceived = message.senderId === selectedUserId;
-
             messageDiv.classList.add("alert", isReceived ? "alert-info" : "alert-success", "mb-2");
-            messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp).toLocaleTimeString()}): ${message.content}`;
+            messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp || message.sentAt).toLocaleTimeString()}): ${message.content}`;
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
+
+            // Mark message as read if we're the receiver
+            if (isReceived && message.messageId) {
+                connection.invoke("MarkMessageAsRead", message.messageId);
+            }
+        }
+
+        // Handle receiving messages
+        connection.on("ReceiveMessage", function (message) {
+            console.log("Received message:", message);
+            if (message.senderId === selectedUserId || message.receiverId === selectedUserId) {
+                appendMessage(message, message.senderId === selectedUserId);
+            }
+        });
+
+        // Handle sent messages
+        connection.on("MessageSent", function (message) {
+            console.log("Sent message:", message);
+            appendMessage(message, false);
         });
 
         // Handle user status changes
         connection.on("UserStatusUpdated", function (userId, status) {
-            updateUserStatus(userId, status);
+            console.log("Status updated:", userId, status);
+            const statusElement = document.getElementById(`status-${userId}`);
+            if (statusElement) {
+                statusElement.textContent = status;
+                statusElement.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+            }
         });
 
         connection.on("UserConnected", function (userId) {
+            console.log("User connected:", userId);
             updateUserStatus(userId, "Online");
         });
 
         connection.on("UserDisconnected", function (userId) {
+            console.log("User disconnected:", userId);
             updateUserStatus(userId, "Offline");
         });
 
@@ -126,12 +192,14 @@
             const message = messageInput.value.trim();
 
             if (message) {
+                // Clear input right away for better UX
+                messageInput.value = "";
+
                 connection.invoke("SendMessage", selectedUserId, message)
                     .catch(function (err) {
                         console.error(err);
+                        alert("Failed to send message. Please try again.");
                     });
-
-                messageInput.value = "";
             }
         }
 
@@ -141,25 +209,14 @@
                 statusElement.textContent = status;
                 statusElement.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
             }
-
-            // Update online users list
-            updateOnlineUsersList(userId, status);
-        }
-
-        function updateOnlineUsersList(userId, status) {
-            const userElement = document.querySelector(`#onlineUsersList li[data-user-id="${userId}"]`);
-            if (userElement) {
-                const statusBadge = userElement.querySelector('.badge');
-                statusBadge.textContent = status;
-                statusBadge.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
-            }
         }
 
         async function loadUserInfo(userId) {
             try {
-                const response = await fetch(`/Contacts/GetUserInfo/${userId}`);
+                const response = await fetch(`/Contacts/GetUser/${userId}`);
                 const user = await response.json();
                 document.getElementById('selectedUserName').textContent = `Chatting with: ${user.userName}`;
+                currentUserName = user.userName;
             } catch (error) {
                 console.error('Error loading user info:', error);
             }
@@ -167,19 +224,14 @@
 
         async function loadPreviousMessages(userId) {
             try {
-                const messagesList = document.getElementById("messagesList");
-                messagesList.innerHTML = ''; // Clear placeholder message
-
                 const response = await fetch(`/Chat/GetMessages?userId=${userId}`);
                 const messages = await response.json();
 
-                messages.forEach(message => {
-                    const messageDiv = document.createElement("div");
-                    const isReceived = message.senderId === selectedUserId;
+                const messagesList = document.getElementById("messagesList");
+                messagesList.innerHTML = ''; // Clear existing messages
 
-                    messageDiv.classList.add("alert", isReceived ? "alert-info" : "alert-success", "mb-2");
-                    messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp).toLocaleTimeString()}): ${message.content}`;
-                    messagesList.appendChild(messageDiv);
+                messages.forEach(message => {
+                    appendMessage(message, message.senderId === selectedUserId);
                 });
 
                 messagesList.scrollTop = messagesList.scrollHeight;
