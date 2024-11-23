@@ -4,10 +4,34 @@
 
 <div class="container">
     <div class="row">
-        <div class="col-md-8 offset-md-2">
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-header">
-                    Chat
+                    My Status
+                </div>
+                <div class="card-body">
+                    <select id="statusSelect" class="form-control">
+                        <option value="Online">Online</option>
+                        <option value="Away">Away</option>
+                        <option value="Busy">Busy</option>
+                        <option value="Do Not Disturb">Do Not Disturb</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-header">
+                    Online Users
+                </div>
+                <div class="card-body">
+                    <ul id="onlineUsersList" class="list-group">
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    Chat Messages
                 </div>
                 <div class="card-body">
                     <div id="messagesList" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
@@ -45,9 +69,22 @@
             const messagesList = document.getElementById("messagesList");
             const messageDiv = document.createElement("div");
             messageDiv.classList.add("alert", "alert-info", "mb-2");
-            messageDiv.textContent = `${message.senderId}: ${message.content}`;
+            messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp).toLocaleTimeString()}): ${message.content}`;
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
+        });
+
+        // Handle user status changes
+        connection.on("UserStatusUpdated", function (userId, status) {
+            updateUserStatus(userId, status);
+        });
+
+        connection.on("UserConnected", function (userId) {
+            updateUserStatus(userId, "Online");
+        });
+
+        connection.on("UserDisconnected", function (userId) {
+            updateUserStatus(userId, "Offline");
         });
 
         // Send message when button is clicked
@@ -58,6 +95,14 @@
             if (event.key === "Enter") {
                 sendMessage();
             }
+        });
+
+        // Handle status changes
+        document.getElementById("statusSelect").addEventListener("change", function (event) {
+            connection.invoke("UpdateStatus", event.target.value)
+                .catch(function (err) {
+                    console.error(err);
+                });
         });
 
         function sendMessage() {
@@ -73,6 +118,11 @@
 
                 messageInput.value = "";
             }
+        }
+
+        function updateUserStatus(userId, status) {
+            // This is a placeholder - we'll implement this with the contact list
+            console.log(`User ${userId} is now ${status}`);
         }
     </script>
 }
