@@ -1,0 +1,113 @@
+﻿@model IEnumerable<ChatterBox.Models.ApplicationUser>
+@{
+    ViewData["Title"] = "Contacts";
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    Add New Contact
+                </div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search users...">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="searchButton">Search</button>
+                        </div>
+                    </div>
+                    <div id="searchResults" class="list-group">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    My Contacts
+                </div>
+                <div class="card-body">
+                    <div id="contactsList" class="list-group">
+                        @foreach (var contact in Model)
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1">@contact.UserName</h5>
+                                    <small class="text-muted">@contact.Email</small>
+                                </div>
+                                <div>
+                                    <a href="#" class="btn btn-primary btn-sm chat-btn" data-user-id="@contact.Id">Chat</a>
+                                    <button class="btn btn-danger btn-sm remove-contact" data-user-id="@contact.Id">Remove</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            let searchTimeout;
+
+            $('#searchInput').on('keyup', function() {
+                clearTimeout(searchTimeout);
+                const searchTerm = $(this).val();
+
+                if (searchTerm.length < 2) {
+                    $('#searchResults').empty();
+                    return;
+                }
+
+                searchTimeout = setTimeout(() => {
+                    $.get('/Contacts/Search', { searchTerm: searchTerm })
+                        .done(function(users) {
+                            $('#searchResults').empty();
+                            users.forEach(user => {
+                                const userElement = $(`
+                                    <div class="list-group-item">
+                                        <h5 class="mb-1">${user.userName}</h5>
+                                        <small class="text-muted">${user.email}</small>
+                                        <button class="btn btn-primary btn-sm float-right add-contact" data-user-id="${user.id}">
+                                            Add Contact
+                                        </button>
+                                    </div>
+                                `);
+                                $('#searchResults').append(userElement);
+                            });
+                        });
+                }, 500);
+            });
+
+            $(document).on('click', '.add-contact', function() {
+                const userId = $(this).data('user-id');
+                $.post('/Contacts/Add', { contactId: userId })
+                    .done(function(response) {
+                        if (response.success) {
+                            location.reload();
+                        }
+                    });
+            });
+
+            $(document).on('click', '.remove-contact', function() {
+                const userId = $(this).data('user-id');
+                $.post('/Contacts/Remove', { contactId: userId })
+                    .done(function(response) {
+                        if (response.success) {
+                            location.reload();
+                        }
+                    });
+            });
+
+            $(document).on('click', '.chat-btn', function(e) {
+                e.preventDefault();
+                const userId = $(this).data('user-id');
+                window.location.href = `/Chat?userId=${userId}`;
+            });
+        });
+    </script>
+}

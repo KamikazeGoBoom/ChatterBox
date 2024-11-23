@@ -30,16 +30,18 @@
         </div>
         <div class="col-md-9">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     Chat Messages
+                    <span id="selectedUserName" class="text-muted"></span>
                 </div>
                 <div class="card-body">
                     <div id="messagesList" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
+                        <div class="alert alert-info">Please select a contact to start chatting.</div>
                     </div>
                     <div class="input-group">
-                        <input type="text" id="messageInput" class="form-control" placeholder="Type your message...">
+                        <input type="text" id="messageInput" class="form-control" placeholder="Type your message..." disabled>
                         <div class="input-group-append">
-                            <button class="btn btn-primary" id="sendButton">Send</button>
+                            <button class="btn btn-primary" id="sendButton" disabled>Send</button>
                         </div>
                     </div>
                 </div>
@@ -51,6 +53,10 @@
 @section Scripts {
     <script src="~/lib/microsoft/signalr/dist/browser/signalr.js"></script>
     <script>
+        // Get selected user ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedUserId = urlParams.get('userId');
+
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/chatHub")
             .withAutomaticReconnect()
@@ -60,7 +66,13 @@
         connection.start()
             .then(() => {
                 console.log("Connected to SignalR hub");
-                document.getElementById("sendButton").disabled = false;
+                if (selectedUserId) {
+                    document.getElementById("messageInput").disabled = false;
+                    document.getElementById("sendButton").disabled = false;
+                    // Load user info and previous messages
+                    loadUserInfo(selectedUserId);
+                    loadPreviousMessages(selectedUserId);
+                }
             })
             .catch(err => console.error(err));
 
@@ -68,7 +80,9 @@
         connection.on("ReceiveMessage", function (message) {
             const messagesList = document.getElementById("messagesList");
             const messageDiv = document.createElement("div");
-            messageDiv.classList.add("alert", "alert-info", "mb-2");
+            const isReceived = message.senderId === selectedUserId;
+
+            messageDiv.classList.add("alert", isReceived ? "alert-info" : "alert-success", "mb-2");
             messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp).toLocaleTimeString()}): ${message.content}`;
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
@@ -106,12 +120,13 @@
         });
 
         function sendMessage() {
+            if (!selectedUserId) return;
+
             const messageInput = document.getElementById("messageInput");
             const message = messageInput.value.trim();
 
             if (message) {
-                // For testing, we'll send to a hardcoded receiver ID
-                connection.invoke("SendMessage", "testUser", message)
+                connection.invoke("SendMessage", selectedUserId, message)
                     .catch(function (err) {
                         console.error(err);
                     });
@@ -121,8 +136,56 @@
         }
 
         function updateUserStatus(userId, status) {
-            // This is a placeholder - we'll implement this with the contact list
-            console.log(`User ${userId} is now ${status}`);
+            const statusElement = document.getElementById(`status-${userId}`);
+            if (statusElement) {
+                statusElement.textContent = status;
+                statusElement.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+            }
+
+            // Update online users list
+            updateOnlineUsersList(userId, status);
+        }
+
+        function updateOnlineUsersList(userId, status) {
+            const userElement = document.querySelector(`#onlineUsersList li[data-user-id="${userId}"]`);
+            if (userElement) {
+                const statusBadge = userElement.querySelector('.badge');
+                statusBadge.textContent = status;
+                statusBadge.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+            }
+        }
+
+        async function loadUserInfo(userId) {
+            try {
+                const response = await fetch(`/Contacts/GetUserInfo/${userId}`);
+                const user = await response.json();
+                document.getElementById('selectedUserName').textContent = `Chatting with: ${user.userName}`;
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function loadPreviousMessages(userId) {
+            try {
+                const messagesList = document.getElementById("messagesList");
+                messagesList.innerHTML = ''; // Clear placeholder message
+
+                const response = await fetch(`/Chat/GetMessages?userId=${userId}`);
+                const messages = await response.json();
+
+                messages.forEach(message => {
+                    const messageDiv = document.createElement("div");
+                    const isReceived = message.senderId === selectedUserId;
+
+                    messageDiv.classList.add("alert", isReceived ? "alert-info" : "alert-success", "mb-2");
+                    messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp).toLocaleTimeString()}): ${message.content}`;
+                    messagesList.appendChild(messageDiv);
+                });
+
+                messagesList.scrollTop = messagesList.scrollHeight;
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
         }
     </script>
 }

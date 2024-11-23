@@ -12,6 +12,7 @@ namespace ChatterBox.Data
         }
 
         public DbSet<Message> Messages { get; set; }
+        public DbSet<Contact> Contacts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -27,6 +28,18 @@ namespace ChatterBox.Data
                 .HasOne(m => m.Receiver)
                 .WithMany()
                 .HasForeignKey(m => m.ReceiverId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Contact>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Contact>()
+                .HasOne(c => c.ContactUser)
+                .WithMany()
+                .HasForeignKey(c => c.ContactUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }
