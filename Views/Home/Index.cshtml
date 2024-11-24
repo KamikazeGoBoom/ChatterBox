@@ -1,8 +1,61 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="container-fluid py-5">
+    <div class="row align-items-center justify-content-center">
+        <div class="col-md-5 text-center">
+            <img src="~/images/chatterbox-logo.png" alt="ChatterBox Logo" class="img-fluid mb-4" width="180" />
+            <h1 class="display-5 mb-3 text-dark">Welcome to ChatterBox</h1>
+            <p class="lead text-secondary">
+                Discover the power of real-time communication.
+            </p>
+            <a href="/Chat" class="btn btn-primary btn-lg">Start Chatting</a>
+        </div>
+        <div class="col-md-6 offset-md-1">
+            <p class="text-secondary">
+                ChatterBox is a cutting-edge chat application designed to revolutionize the way you communicate. With features like real-time messaging, group discussions, and seamless file sharing, ChatterBox empowers you to connect with your friends and colleagues like never before.
+            </p>
+            <p class="text-secondary">
+                Get started today and experience the future of communication.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid py-5 bg-light" style="background-color: rgba(240, 240, 240, 0.1) !important;">
+    <div class="row align-items-center justify-content-center">
+        <div class="col-md-8 text-center">
+            <h2 class="display-6 mb-3 text-dark">Features</h2>
+            <p class="lead text-secondary">
+                Discover the revolutionary features of ChatterBox:
+            </p>
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                <div class="col">
+                    <div class="card bg-white shadow-sm border-0 h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-chat-dots-fill fs-1 text-dark mb-3"></i>
+                            <h5 class="card-title text-dark">Real-time Messaging</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="card bg-white shadow-sm border-0 h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-people-fill fs-1 text-dark mb-3"></i>
+                            <h5 class="card-title text-dark">Group Discussions</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="card bg-white shadow-sm border-0 h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-file-earmark-fill fs-1 text-dark mb-3"></i>
+                            <h5 class="card-title text-dark">Seamless File Sharing</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
