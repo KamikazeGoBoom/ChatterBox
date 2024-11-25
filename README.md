@@ -91,3 +91,5 @@ Update-Database
    ```powershell
    dotnet restore
    ```
+
+   #Run as Admin if all else is done and still not working
