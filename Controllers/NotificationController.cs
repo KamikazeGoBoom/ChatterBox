@@ -120,14 +120,9 @@ namespace ChatterBox.Controllers
 
             try
             {
-                var unreadNotifications = await _context.Notifications
+                await _context.Notifications
                     .Where(n => n.UserId == userId && !n.IsRead)
-                    .ToListAsync();
-
-                foreach (var notification in unreadNotifications)
-                {
-                    notification.IsRead = true;
-                }
+                    .ForEachAsync(n => n.IsRead = true);
 
                 await _context.SaveChangesAsync();
                 return Json(new { success = true });
@@ -153,6 +148,26 @@ namespace ChatterBox.Controllers
                     return NotFound();
 
                 _context.Notifications.Remove(notification);
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteAll()
+        {
+            var userId = _userManager.GetUserId(User);
+            if (userId == null) return Unauthorized();
+
+            try
+            {
+                var notifications = _context.Notifications.Where(n => n.UserId == userId);
+                _context.Notifications.RemoveRange(notifications);
                 await _context.SaveChangesAsync();
 
                 return Json(new { success = true });

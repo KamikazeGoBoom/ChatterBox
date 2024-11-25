@@ -6,9 +6,13 @@ namespace ChatterBox.Data
 {
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
+        private static readonly TimeZoneInfo _philippinesTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila");
+
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
+            // Increase command timeout for migrations
+            Database.SetCommandTimeout(60);
         }
 
         public DbSet<Message> Messages { get; set; } = null!;
@@ -16,6 +20,61 @@ namespace ChatterBox.Data
         public DbSet<Group> Groups { get; set; } = null!;
         public DbSet<GroupMember> GroupMembers { get; set; } = null!;
         public DbSet<Notification> Notifications { get; set; } = null!;
+
+        private DateTime GetPhilippinesTime()
+        {
+            return TimeZoneInfo.ConvertTime(DateTime.UtcNow, _philippinesTimeZone);
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            var entries = ChangeTracker
+                .Entries()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+            foreach (var entityEntry in entries)
+            {
+                // Handle created timestamps
+                if (entityEntry.State == EntityState.Added)
+                {
+                    switch (entityEntry.Entity)
+                    {
+                        case Message message:
+                            if (message.SentAt == default)
+                                message.SentAt = GetPhilippinesTime();
+                            break;
+                        case Notification notification:
+                            if (notification.CreatedAt == default)
+                                notification.CreatedAt = GetPhilippinesTime();
+                            break;
+                        case Contact contact:
+                            if (contact.CreatedAt == default)
+                                contact.CreatedAt = GetPhilippinesTime();
+                            break;
+                        case Group group:
+                            if (group.CreatedAt == default)
+                                group.CreatedAt = GetPhilippinesTime();
+                            break;
+                        case GroupMember groupMember:
+                            if (groupMember.JoinedAt == default)
+                                groupMember.JoinedAt = GetPhilippinesTime();
+                            break;
+                    }
+                }
+
+                // Handle LastSeen updates for ApplicationUser
+                if (entityEntry.Entity is ApplicationUser user && entityEntry.State == EntityState.Modified)
+                {
+                    var lastSeenProperty = entityEntry.Property("LastSeen");
+                    if (lastSeenProperty != null && lastSeenProperty.IsModified)
+                    {
+                        user.LastSeen = GetPhilippinesTime();
+                    }
+                }
+            }
+
+            return base.SaveChangesAsync(cancellationToken);
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -83,26 +142,26 @@ namespace ChatterBox.Data
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Configure default values for timestamps
+            // Configure default values for timestamps using Philippines time (UTC+8)
             builder.Entity<Message>()
                 .Property(m => m.SentAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
 
             builder.Entity<Notification>()
                 .Property(n => n.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
 
             builder.Entity<Contact>()
                 .Property(c => c.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
 
             builder.Entity<Group>()
                 .Property(g => g.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
 
             builder.Entity<GroupMember>()
                 .Property(gm => gm.JoinedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
         }
     }
 }

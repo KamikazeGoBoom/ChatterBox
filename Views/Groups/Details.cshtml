@@ -6,7 +6,6 @@
 
 <div class="container">
     <div class="row">
-        <!-- Group Info -->
         <div class="col-md-4">
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -26,7 +25,10 @@
                     <p class="card-text">
                         <small class="text-muted">
                             Created by: @Model.CreatedBy?.UserName<br />
-                            Created: @Model.CreatedAt.ToString("MMM dd, yyyy")<br />
+                            Created: @TimeZoneInfo.ConvertTimeFromUtc(
+                            Model.CreatedAt.ToUniversalTime(),
+                            TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila")
+                            ).ToString("MMM dd, yyyy")<br />
                             @(Model.IsPrivate ? "Private Group" : "Public Group")
                         </small>
                     </p>
@@ -48,7 +50,6 @@
                 </div>
             </div>
 
-            <!-- Members List -->
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">Members (@Model.Members?.Count)</h5>
@@ -67,7 +68,6 @@
             </div>
         </div>
 
-        <!-- Chat Area -->
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
@@ -83,7 +83,12 @@
                                      d-inline-block p-2 rounded">
                                     @message.Content
                                 </div>
-                                <small class="text-muted">@message.SentAt.ToString("HH:mm")</small>
+                                <small class="text-muted">
+                                    @TimeZoneInfo.ConvertTimeFromUtc(
+                                             message.SentAt.ToUniversalTime(),
+                                             TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila")
+                                             ).ToString("hh:mm tt")
+                                </small>
                             </div>
                         }
                     </div>
@@ -125,7 +130,15 @@
         const connectionStatus = document.getElementById("connectionStatus");
         const messagesList = document.getElementById("messagesList");
 
-        // Update UI based on connection state
+        function formatTime(dateString) {
+            return new Date(dateString).toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
         function updateConnectionState(isConnected) {
             if (sendButton) {
                 sendButton.disabled = !isConnected;
@@ -152,7 +165,6 @@
             }
         }
 
-        // Connection event handlers
         connection.onclose(async () => {
             isConnected = false;
             updateConnectionState(false);
@@ -173,30 +185,33 @@
             await connection.invoke("JoinGroup", groupId);
         });
 
-        // Message handling
         connection.on("ReceiveGroupMessage", function (message) {
             const isCurrentUser = message.senderId === '@ViewBag.CurrentUserId';
+            const formattedTime = formatTime(message.sentAt);
 
             const messageDiv = document.createElement("div");
             messageDiv.className = `message mb-2 ${isCurrentUser ? "text-end" : ""}`;
-
-            const content = document.createElement("div");
-            content.className = `${isCurrentUser ? "bg-primary text-white" : "bg-light"} d-inline-block p-2 rounded`;
-            content.textContent = message.content;
-
             messageDiv.innerHTML = `
                 <small class="text-muted">${message.senderName}</small>
-            `;
-            messageDiv.appendChild(content);
-            messageDiv.innerHTML += `
-                <small class="text-muted">${new Date(message.sentAt).toLocaleTimeString()}</small>
+                <div class="${isCurrentUser ? "bg-primary text-white" : "bg-light"} d-inline-block p-2 rounded">
+                    ${escapeHtml(message.content)}
+                </div>
+                <small class="text-muted">${formattedTime}</small>
             `;
 
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
         });
 
-        // Message sending
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
         async function sendMessage() {
             if (!isConnected) {
                 alert("Not connected. Please wait for reconnection.");
@@ -215,7 +230,6 @@
             }
         }
 
-        // Event listeners
         if (sendButton) {
             sendButton.addEventListener("click", sendMessage);
         }
@@ -229,15 +243,12 @@
             });
         }
 
-        // Auto-scroll
         function scrollToBottom() {
             messagesList.scrollTop = messagesList.scrollHeight;
         }
 
-        // Initial connection
         startConnection().then(scrollToBottom);
 
-        // Cleanup
         window.addEventListener('beforeunload', async () => {
             if (isConnected) {
                 try {
@@ -249,7 +260,6 @@
             }
         });
 
-        // Keep scroll position at bottom when new messages arrive
         const observer = new MutationObserver(scrollToBottom);
         observer.observe(messagesList, { childList: true });
     </script>

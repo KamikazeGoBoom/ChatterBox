@@ -72,6 +72,20 @@
         const urlParams = new URLSearchParams(window.location.search);
         selectedUserId = urlParams.get('userId');
 
+        // Time formatting function for Philippines timezone (UTC+8)
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric'
+            });
+        }
+
         async function startConnection() {
             try {
                 await connection.start();
