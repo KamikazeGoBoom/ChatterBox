@@ -11,10 +11,11 @@ namespace ChatterBox.Data
         {
         }
 
-        public DbSet<Message> Messages { get; set; }
-        public DbSet<Contact> Contacts { get; set; }
-        public DbSet<Group> Groups { get; set; }
-        public DbSet<GroupMember> GroupMembers { get; set; }
+        public DbSet<Message> Messages { get; set; } = null!;
+        public DbSet<Contact> Contacts { get; set; } = null!;
+        public DbSet<Group> Groups { get; set; } = null!;
+        public DbSet<GroupMember> GroupMembers { get; set; } = null!;
+        public DbSet<Notification> Notifications { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -74,6 +75,34 @@ namespace ChatterBox.Data
                 .WithMany()
                 .HasForeignKey(gm => gm.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Notification configurations
+            builder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure default values for timestamps
+            builder.Entity<Message>()
+                .Property(m => m.SentAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            builder.Entity<Notification>()
+                .Property(n => n.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            builder.Entity<Contact>()
+                .Property(c => c.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            builder.Entity<Group>()
+                .Property(g => g.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            builder.Entity<GroupMember>()
+                .Property(gm => gm.JoinedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
         }
     }
 }

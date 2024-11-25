@@ -1,0 +1,105 @@
+﻿@model IEnumerable<ChatterBox.Models.Notification>
+@{
+    ViewData["Title"] = "Notifications";
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">All Notifications</h5>
+                    <div>
+                        @if (Model.Any())
+                        {
+                            <button id="markAllReadBtn" class="btn btn-outline-primary btn-sm">Mark all as read</button>
+                            <button id="clearAllBtn" class="btn btn-outline-danger btn-sm ms-2">Clear all</button>
+                        }
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="notificationList" class="list-group list-group-flush">
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var notification in Model)
+                            {
+                                <div class="notification-item @(notification.IsRead ? "" : "unread")" data-id="@notification.NotificationId">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="notification-content">
+                                            <h6 class="notification-title mb-1">@notification.Title</h6>
+                                            <p class="notification-message mb-1">@notification.Message</p>
+                                            <small class="notification-time text-muted">
+                                                @notification.CreatedAt.ToLocalTime().ToString("g")
+                                            </small>
+                                        </div>
+                                        <div class="notification-actions">
+                                            @if (!notification.IsRead)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary mark-read-btn" data-id="@notification.NotificationId">
+                                                    Mark as read
+                                                </button>
+                                            }
+                                            <button class="btn btn-sm btn-outline-danger delete-btn" data-id="@notification.NotificationId">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center py-5">
+                                <i class="bi bi-bell text-muted" style="font-size: 2rem;"></i>
+                                <p class="mt-2 text-muted">No notifications yet</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Wait for notification system to be loaded
+        function waitForNotificationSystem(callback) {
+            if (window.notificationSystem) {
+                callback();
+            } else {
+                setTimeout(() => waitForNotificationSystem(callback), 100);
+            }
+        }
+
+        $(document).ready(function() {
+            waitForNotificationSystem(function() {
+                // Mark as read button click
+                $('.mark-read-btn').on('click', function() {
+                    var notificationId = $(this).data('id');
+                    window.notificationSystem.markAsRead(notificationId);
+                });
+
+                // Delete button click
+                $('.delete-btn').on('click', function() {
+                    var notificationId = $(this).data('id');
+                    if (confirm('Are you sure you want to delete this notification?')) {
+                        window.notificationSystem.deleteNotification(notificationId);
+                    }
+                });
+
+                // Mark all as read button click
+                $('#markAllReadBtn').on('click', function() {
+                    window.notificationSystem.markAllAsRead();
+                });
+
+                // Clear all button click
+                $('#clearAllBtn').on('click', function() {
+                    if (confirm('Are you sure you want to delete all notifications?')) {
+                        window.notificationSystem.deleteAllNotifications();
+                    }
+                });
+            });
+        });
+    </script>
+}

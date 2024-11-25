@@ -33,10 +33,14 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>Chat Messages</span>
-                    <span id="selectedUserName" class="text-muted"></span>
+                    <div class="d-flex align-items-center">
+                        <span id="userTypingIndicator" class="text-muted me-3" style="display: none;"></span>
+                        <span id="selectedUserName" class="text-muted"></span>
+                        <small id="userStatus" class="ms-2 badge bg-secondary"></small>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div id="messagesList" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
+                    <div id="messagesList" class="chat-messages" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
                         <div class="alert alert-info">Please select a contact to start chatting.</div>
                     </div>
                     <div class="input-group">
@@ -54,33 +58,54 @@
 @section Scripts {
     <script src="~/lib/microsoft/signalr/dist/browser/signalr.js"></script>
     <script>
-        // Get selected user ID from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const selectedUserId = urlParams.get('userId');
-        let currentUserName = '';
-
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/chatHub")
-            .withAutomaticReconnect()
+            .withAutomaticReconnect([0, 2000, 5000, 10000])
             .build();
 
-        // Start the connection
-        connection.start()
-            .then(() => {
+        let selectedUserId = null;
+        let currentUserName = '';
+        let typingTimer = null;
+        const unreadMessages = new Map();
+
+        // Initialize from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        selectedUserId = urlParams.get('userId');
+
+        async function startConnection() {
+            try {
+                await connection.start();
                 console.log("Connected to SignalR hub");
-                // Load online users initially
-                loadOnlineUsers();
+                await loadOnlineUsers();
 
                 if (selectedUserId) {
-                    document.getElementById("messageInput").disabled = false;
-                    document.getElementById("sendButton").disabled = false;
-                    loadUserInfo(selectedUserId);
-                    loadPreviousMessages(selectedUserId);
+                    enableChat();
+                    await loadUserInfo(selectedUserId);
+                    await loadPreviousMessages(selectedUserId);
                 }
-            })
-            .catch(err => console.error(err));
+            } catch (err) {
+                console.error("Error connecting:", err);
+                setTimeout(startConnection, 5000);
+            }
+        }
 
-        // Load online users
+        // Handle connection events
+        connection.onclose(async () => {
+            console.log("Connection closed. Attempting to reconnect...");
+            await startConnection();
+        });
+
+        connection.onreconnecting(() => {
+            console.log("Attempting to reconnect...");
+            showConnectionStatus("Reconnecting...", "warning");
+        });
+
+        connection.onreconnected(() => {
+            console.log("Reconnected");
+            showConnectionStatus("Connected", "success");
+            loadOnlineUsers();
+        });
+
         async function loadOnlineUsers() {
             try {
                 const response = await fetch('/Contacts/GetContacts');
@@ -88,6 +113,7 @@
                 updateOnlineUsersList(contacts);
             } catch (error) {
                 console.error('Error loading online users:', error);
+                showError('Failed to load contacts');
             }
         }
 
@@ -97,33 +123,94 @@
 
             users.forEach(user => {
                 const userElement = document.createElement('a');
-                userElement.href = `#`;
-                userElement.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
-                userElement.onclick = () => startChat(user.id);
+                userElement.href = '#';
+                userElement.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-center
+                    ${user.id === selectedUserId ? 'active' : ''}`;
+                userElement.onclick = (e) => {
+                    e.preventDefault();
+                    startChat(user.id);
+                };
+
+                const userContent = document.createElement('div');
+                userContent.className = 'd-flex flex-column';
 
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = user.userName;
 
                 const statusBadge = document.createElement('span');
                 statusBadge.id = `status-${user.id}`;
-                statusBadge.className = `badge ${user.status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+                statusBadge.className = `badge ${getStatusBadgeClass(user.status)}`;
                 statusBadge.textContent = user.status || 'Offline';
 
-                userElement.appendChild(nameSpan);
-                userElement.appendChild(statusBadge);
+                const unreadBadge = document.createElement('span');
+                unreadBadge.id = `unread-${user.id}`;
+                unreadBadge.className = 'badge bg-danger';
+                unreadBadge.style.display = 'none';
+                unreadBadge.textContent = '0';
+
+                userContent.appendChild(nameSpan);
+                userContent.appendChild(statusBadge);
+                userElement.appendChild(userContent);
+                userElement.appendChild(unreadBadge);
                 onlineUsersList.appendChild(userElement);
+
+                // Update unread count if exists
+                const unreadCount = unreadMessages.get(user.id);
+                if (unreadCount) {
+                    updateUnreadBadge(user.id, unreadCount);
+                }
             });
         }
 
+        function getStatusBadgeClass(status) {
+            switch (status?.toLowerCase()) {
+                case 'online': return 'bg-success';
+                case 'away': return 'bg-warning';
+                case 'busy': return 'bg-danger';
+                case 'do not disturb': return 'bg-danger';
+                default: return 'bg-secondary';
+            }
+        }
+
         function startChat(userId) {
-            window.location.href = `/Chat?userId=${userId}`;
+            selectedUserId = userId;
+            history.pushState(null, '', `/Chat?userId=${userId}`);
+            enableChat();
+            loadUserInfo(userId);
+            loadPreviousMessages(userId);
+
+            // Clear unread messages for this user
+            updateUnreadBadge(userId, 0);
+            unreadMessages.delete(userId);
+        }
+
+        function enableChat() {
+            document.getElementById("messageInput").disabled = false;
+            document.getElementById("sendButton").disabled = false;
+        }
+
+        function showConnectionStatus(message, type) {
+            const messagesList = document.getElementById("messagesList");
+            const statusDiv = document.createElement("div");
+            statusDiv.className = `alert alert-${type}`;
+            statusDiv.textContent = message;
+            messagesList.appendChild(statusDiv);
+            messagesList.scrollTop = messagesList.scrollHeight;
         }
 
         function appendMessage(message, isReceived) {
             const messagesList = document.getElementById("messagesList");
             const messageDiv = document.createElement("div");
-            messageDiv.classList.add("alert", isReceived ? "alert-info" : "alert-success", "mb-2");
-            messageDiv.textContent = `${message.senderName} (${new Date(message.timestamp || message.sentAt).toLocaleTimeString()}): ${message.content}`;
+            messageDiv.className = `chat-message ${isReceived ? 'received' : 'sent'}`;
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="message-header">
+                        <strong>${message.senderName}</strong>
+                        <small class="text-muted">${new Date(message.timestamp || message.sentAt).toLocaleTimeString()}</small>
+                    </div>
+                    <div class="message-body">${escapeHtml(message.content)}</div>
+                </div>
+            `;
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
 
@@ -133,27 +220,47 @@
             }
         }
 
-        // Handle receiving messages
+        function updateUnreadBadge(userId, count) {
+            const badge = document.getElementById(`unread-${userId}`);
+            if (badge) {
+                badge.textContent = count;
+                badge.style.display = count > 0 ? 'inline' : 'none';
+            }
+        }
+
+        // SignalR event handlers
         connection.on("ReceiveMessage", function (message) {
             console.log("Received message:", message);
-            if (message.senderId === selectedUserId || message.receiverId === selectedUserId) {
-                appendMessage(message, message.senderId === selectedUserId);
+
+            if (selectedUserId === message.senderId) {
+                appendMessage(message, true);
+            } else {
+                // Update unread count for sender
+                const currentCount = unreadMessages.get(message.senderId) || 0;
+                unreadMessages.set(message.senderId, currentCount + 1);
+                updateUnreadBadge(message.senderId, currentCount + 1);
+
+                // Show notification
+                showNotification(message.senderName, message.content);
             }
         });
 
-        // Handle sent messages
         connection.on("MessageSent", function (message) {
             console.log("Sent message:", message);
             appendMessage(message, false);
         });
 
-        // Handle user status changes
         connection.on("UserStatusUpdated", function (userId, status) {
             console.log("Status updated:", userId, status);
             const statusElement = document.getElementById(`status-${userId}`);
             if (statusElement) {
                 statusElement.textContent = status;
-                statusElement.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+                statusElement.className = `badge ${getStatusBadgeClass(status)}`;
+            }
+
+            // Update status in chat header if it's the selected user
+            if (selectedUserId === userId) {
+                updateSelectedUserStatus(status);
             }
         });
 
@@ -167,39 +274,49 @@
             updateUserStatus(userId, "Offline");
         });
 
-        // Send message when button is clicked
-        document.getElementById("sendButton").addEventListener("click", sendMessage);
+        connection.on("MessageRead", function (messageId) {
+            console.log("Message read:", messageId);
+            // Update UI to show message has been read
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.classList.add('read');
+            }
+        });
 
-        // Also send message when Enter key is pressed
+        // UI Event handlers
+        document.getElementById("sendButton").addEventListener("click", sendMessage);
         document.getElementById("messageInput").addEventListener("keypress", function (event) {
-            if (event.key === "Enter") {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
                 sendMessage();
             }
         });
 
-        // Handle status changes
         document.getElementById("statusSelect").addEventListener("change", function (event) {
             connection.invoke("UpdateStatus", event.target.value)
                 .catch(function (err) {
                     console.error(err);
+                    showError('Failed to update status');
                 });
         });
 
-        function sendMessage() {
+        // Helper functions
+        async function sendMessage() {
             if (!selectedUserId) return;
 
             const messageInput = document.getElementById("messageInput");
             const message = messageInput.value.trim();
 
             if (message) {
-                // Clear input right away for better UX
                 messageInput.value = "";
 
-                connection.invoke("SendMessage", selectedUserId, message)
-                    .catch(function (err) {
-                        console.error(err);
-                        alert("Failed to send message. Please try again.");
-                    });
+                try {
+                    await connection.invoke("SendMessage", selectedUserId, message);
+                } catch (error) {
+                    console.error(error);
+                    showError('Failed to send message');
+                    messageInput.value = message; // Restore message on failure
+                }
             }
         }
 
@@ -207,7 +324,7 @@
             const statusElement = document.getElementById(`status-${userId}`);
             if (statusElement) {
                 statusElement.textContent = status;
-                statusElement.className = `badge ${status === 'Online' ? 'bg-success' : 'bg-secondary'}`;
+                statusElement.className = `badge ${getStatusBadgeClass(status)}`;
             }
         }
 
@@ -217,8 +334,10 @@
                 const user = await response.json();
                 document.getElementById('selectedUserName').textContent = `Chatting with: ${user.userName}`;
                 currentUserName = user.userName;
+                updateSelectedUserStatus(user.status);
             } catch (error) {
                 console.error('Error loading user info:', error);
+                showError('Failed to load user information');
             }
         }
 
@@ -228,7 +347,7 @@
                 const messages = await response.json();
 
                 const messagesList = document.getElementById("messagesList");
-                messagesList.innerHTML = ''; // Clear existing messages
+                messagesList.innerHTML = '';
 
                 messages.forEach(message => {
                     appendMessage(message, message.senderId === selectedUserId);
@@ -237,7 +356,65 @@
                 messagesList.scrollTop = messagesList.scrollHeight;
             } catch (error) {
                 console.error('Error loading messages:', error);
+                showError('Failed to load message history');
             }
         }
+
+        function updateSelectedUserStatus(status) {
+            const userStatus = document.getElementById('userStatus');
+            userStatus.textContent = status;
+            userStatus.className = `ms-2 badge ${getStatusBadgeClass(status)}`;
+        }
+
+        function showNotification(title, message) {
+            if (Notification.permission === "granted") {
+                new Notification(title, {
+                    body: message,
+                    icon: '/favicon.ico'
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        new Notification(title, {
+                            body: message,
+                            icon: '/favicon.ico'
+                        });
+                    }
+                });
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+            errorDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.querySelector('.card-body').insertBefore(errorDiv, document.getElementById('messagesList'));
+
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Request notification permission on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            if ("Notification" in window) {
+                Notification.requestPermission();
+            }
+        });
+
+        // Start the connection
+        startConnection();
     </script>
 }

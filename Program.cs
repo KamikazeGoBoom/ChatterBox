@@ -1,6 +1,7 @@
 using ChatterBox.Data;
 using ChatterBox.Hubs;
 using ChatterBox.Models;
+using ChatterBox.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,6 +36,9 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options => {
     options.Lockout.AllowedForNewUsers = true;
 })
     .AddEntityFrameworkStores<ApplicationDbContext>();
+
+// Add NotificationService
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Configure Authentication
 builder.Services.ConfigureApplicationCookie(options =>
@@ -130,13 +134,15 @@ app.MapControllerRoute(
 
 app.MapRazorPages();
 
-// Configure SignalR endpoint with options
+// Configure SignalR endpoints with options
 app.MapHub<ChatHub>("/chatHub", options =>
 {
     options.ApplicationMaxBufferSize = 102400;
     options.TransportMaxBufferSize = 102400;
     options.WebSockets.CloseTimeout = TimeSpan.FromSeconds(5);
 });
+
+app.MapHub<NotificationHub>("/notificationHub");
 
 try
 {
