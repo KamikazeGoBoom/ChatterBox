@@ -1,0 +1,75 @@
+﻿@model ChatterBox.Models.Group
+@{
+    ViewData["Title"] = "Manage Group Members";
+}
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Manage Members - @Model.Name</h2>
+        </div>
+        <div class="col text-end">
+            <a asp-action="Details" asp-route-id="@Model.GroupId" class="btn btn-secondary">Back to Group</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Members</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        @foreach (var member in Model.Members.OrderBy(m => m.User.UserName))
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">@member.User.UserName</h6>
+                                    <small class="text-muted">Joined: @member.JoinedAt.ToString("MMM dd, yyyy")</small>
+                                    @if (member.UserId == Model.CreatedById)
+                                    {
+                                        <span class="badge bg-primary ms-2">Creator</span>
+                                    }
+                                </div>
+                                @if (member.UserId != Model.CreatedById)
+                                {
+                                    <form asp-action="RemoveMember" asp-route-groupId="@Model.GroupId" asp-route-userId="@member.UserId"
+                                          onsubmit="return confirm('Are you sure you want to remove this member?');" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                                    </form>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Add New Members</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        @foreach (var user in ViewBag.NonMembers)
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">@user.UserName</h6>
+                                    <small class="text-muted">@user.Email</small>
+                                </div>
+                                <form asp-action="AddMember" asp-route-groupId="@Model.GroupId" asp-route-userId="@user.Id" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-success btn-sm">Add</button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
