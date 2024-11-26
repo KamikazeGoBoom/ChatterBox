@@ -25,7 +25,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-// Configure Identity
+// Configure Identity - UPDATED with Role support
 builder.Services.AddDefaultIdentity<ApplicationUser>(options => {
     options.SignIn.RequireConfirmedAccount = false;
     options.User.RequireUniqueEmail = true;
@@ -35,10 +35,18 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options => {
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.AllowedForNewUsers = true;
 })
+    .AddRoles<IdentityRole>() // Added Role support
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
-// Add NotificationService
+// Add Services
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<AdminInitializationService>(); // Added AdminInitializationService
+
+// Add Authorization Policies
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SystemAdminOnly", policy => policy.RequireRole("SystemAdmin"));
+});
 
 // Configure Authentication
 builder.Services.ConfigureApplicationCookie(options =>
@@ -146,19 +154,24 @@ app.MapHub<NotificationHub>("/notificationHub");
 
 try
 {
-    // Ensure database is created and migrations are applied
+    // Initialize database and create admin
     using (var scope = app.Services.CreateScope())
     {
         var services = scope.ServiceProvider;
         try
         {
+            // Ensure database is created and migrations are applied
             var context = services.GetRequiredService<ApplicationDbContext>();
             context.Database.Migrate();
+
+            // Initialize admin role and user
+            var adminInitService = services.GetRequiredService<AdminInitializationService>();
+            await adminInitService.InitializeAsync();
         }
         catch (Exception ex)
         {
             var logger = services.GetRequiredService<ILogger<Program>>();
-            logger.LogError(ex, "An error occurred while migrating the database.");
+            logger.LogError(ex, "An error occurred during database migration or admin initialization.");
         }
     }
 
