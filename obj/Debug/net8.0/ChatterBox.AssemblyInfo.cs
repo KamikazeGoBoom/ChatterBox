@@ -16,7 +16,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ChatterBox")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b7c1e5196d044bae675d5f20b580cc978c95cf1")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cd9b9d2a16e1e422d6fc06a9adc5b2701ad14737")]
 [assembly: System.Reflection.AssemblyProductAttribute("ChatterBox")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ChatterBox")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

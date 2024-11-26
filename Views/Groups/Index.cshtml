@@ -33,11 +33,10 @@
                             <div class="d-grid gap-2">
                                 <a asp-action="Details" asp-route-id="@group.GroupId"
                                    class="btn btn-outline-primary mb-2">View Details</a>
-
-                                @if (ViewBag.IsSystemAdmin)
+                                @if (group.CreatedById == UserManager.GetUserId(User) || ViewBag.IsSystemAdmin)
                                 {
-                                    <a asp-action="ManageUsers" asp-route-id="@group.GroupId"
-                                       class="btn btn-outline-info mb-2">Manage Users</a>
+                                    <a asp-action="ManageMembers" asp-route-id="@group.GroupId"
+                                       class="btn btn-outline-info mb-2">Manage Members</a>
                                     <a asp-action="Edit" asp-route-id="@group.GroupId"
                                        class="btn btn-outline-warning mb-2">Edit Group</a>
                                     <form asp-action="DeleteConfirmed" asp-route-id="@group.GroupId"
@@ -45,6 +44,11 @@
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-outline-danger w-100">Delete Group</button>
                                     </form>
+                                }
+                                else if (ViewBag.IsSystemAdmin)
+                                {
+                                    <a asp-action="ManageUsers" asp-route-id="@group.GroupId"
+                                       class="btn btn-outline-info mb-2">Manage Users</a>
                                 }
                             </div>
                         </div>
@@ -61,7 +65,6 @@
             </div>
         }
     </div>
-
     @if (ViewBag.IsSystemAdmin)
     {
         <div class="row mt-4">

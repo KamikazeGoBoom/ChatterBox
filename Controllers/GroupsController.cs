@@ -28,11 +28,19 @@ namespace ChatterBox.Controllers
             _logger = logger;
         }
 
-        // Add helper method for checking admin status
         private async Task<bool> IsSystemAdmin()
         {
             var user = await _userManager.GetUserAsync(User);
             return user != null && await _userManager.IsInRoleAsync(user, "SystemAdmin");
+        }
+
+        private async Task<bool> IsGroupCreator(int groupId)
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null) return false;
+
+            var group = await _context.Groups.FindAsync(groupId);
+            return group?.CreatedById == currentUser.Id;
         }
 
         public async Task<IActionResult> Index()
@@ -95,6 +103,7 @@ namespace ChatterBox.Controllers
 
             var isMember = group.Members.Any(m => m.UserId == currentUser.Id);
             var isSystemAdmin = await IsSystemAdmin();
+            var isCreator = group.CreatedById == currentUser.Id;
 
             // Allow system admins to view any group
             if (group.IsPrivate && !isMember && !isSystemAdmin)
@@ -112,16 +121,16 @@ namespace ChatterBox.Controllers
 
             ViewBag.CurrentUserId = currentUser.Id;
             ViewBag.IsMember = isMember;
-            ViewBag.IsAdmin = group.CreatedById == currentUser.Id;
+            ViewBag.IsAdmin = isCreator;
             ViewBag.IsSystemAdmin = isSystemAdmin;
+            ViewBag.IsCreator = isCreator;
             ViewBag.Messages = messages;
 
             return View(group);
         }
 
-        // Add admin-only management actions
-        [Authorize(Roles = "SystemAdmin")]
-        public async Task<IActionResult> ManageUsers(int id)
+        // Group creator member management
+        public async Task<IActionResult> ManageMembers(int id)
         {
             var group = await _context.Groups
                 .Include(g => g.Members)
@@ -133,6 +142,17 @@ namespace ChatterBox.Controllers
                 return NotFound();
             }
 
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null)
+            {
+                return Challenge();
+            }
+
+            if (group.CreatedById != currentUser.Id && !await IsSystemAdmin())
+            {
+                return Forbid();
+            }
+
             // Get IDs of users who are already members
             var memberIds = group.Members.Select(m => m.UserId).ToList();
 
@@ -142,12 +162,13 @@ namespace ChatterBox.Controllers
                 .ToListAsync();
 
             ViewBag.NonMembers = nonMembers;
+            ViewBag.IsSystemAdmin = await IsSystemAdmin();
             return View(group);
         }
 
         [HttpPost]
-        [Authorize(Roles = "SystemAdmin")]
-        public async Task<IActionResult> AddUserToGroup(int groupId, string userId)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddMember(int groupId, string userId)
         {
             try
             {
@@ -157,6 +178,17 @@ namespace ChatterBox.Controllers
                 if (group == null || user == null)
                 {
                     return NotFound();
+                }
+
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null)
+                {
+                    return Challenge();
+                }
+
+                if (group.CreatedById != currentUser.Id && !await IsSystemAdmin())
+                {
+                    return Forbid();
                 }
 
                 var membership = new GroupMember
@@ -170,39 +202,87 @@ namespace ChatterBox.Controllers
                 _context.GroupMembers.Add(membership);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"System Admin added user {userId} to group {groupId}");
-                return RedirectToAction(nameof(ManageUsers), new { id = groupId });
+                _logger.LogInformation($"User {userId} added to group {groupId} by {currentUser.Id}");
+                return RedirectToAction(nameof(ManageMembers), new { id = groupId });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error adding user to group {groupId}");
-                return RedirectToAction(nameof(ManageUsers), new { id = groupId });
+                return RedirectToAction(nameof(ManageMembers), new { id = groupId });
             }
         }
 
         [HttpPost]
-        [Authorize(Roles = "SystemAdmin")]
-        public async Task<IActionResult> RemoveUserFromGroup(int groupId, string userId)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RemoveMember(int groupId, string userId)
         {
             try
             {
                 var membership = await _context.GroupMembers
                     .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId);
 
-                if (membership != null)
+                if (membership == null)
                 {
-                    _context.GroupMembers.Remove(membership);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation($"System Admin removed user {userId} from group {groupId}");
+                    return NotFound();
                 }
 
-                return RedirectToAction(nameof(ManageUsers), new { id = groupId });
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null)
+                {
+                    return Challenge();
+                }
+
+                var group = await _context.Groups.FindAsync(groupId);
+                if (group == null)
+                {
+                    return NotFound();
+                }
+
+                if (group.CreatedById != currentUser.Id && !await IsSystemAdmin())
+                {
+                    return Forbid();
+                }
+
+                // Don't allow removal of the group creator
+                if (userId == group.CreatedById)
+                {
+                    return BadRequest("Cannot remove the group creator");
+                }
+
+                _context.GroupMembers.Remove(membership);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"User {userId} removed from group {groupId} by {currentUser.Id}");
+                return RedirectToAction(nameof(ManageMembers), new { id = groupId });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error removing user from group {groupId}");
-                return RedirectToAction(nameof(ManageUsers), new { id = groupId });
+                return RedirectToAction(nameof(ManageMembers), new { id = groupId });
             }
+        }
+
+        [Authorize(Roles = "SystemAdmin")]
+        public async Task<IActionResult> ManageUsers(int id)
+        {
+            var group = await _context.Groups
+                .Include(g => g.Members)
+                    .ThenInclude(m => m.User)
+                .FirstOrDefaultAsync(g => g.GroupId == id);
+
+            if (group == null)
+            {
+                return NotFound();
+            }
+
+            var memberIds = group.Members.Select(m => m.UserId).ToList();
+            var nonMembers = await _userManager.Users
+                .Where(u => !memberIds.Contains(u.Id))
+                .ToListAsync();
+
+            ViewBag.NonMembers = nonMembers;
+            ViewBag.IsSystemAdmin = true;
+            return View("ManageMembers", group);
         }
 
         public IActionResult Create()
@@ -421,7 +501,6 @@ namespace ChatterBox.Controllers
                 {
                     return NotFound();
                 }
-
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser == null)
                 {
