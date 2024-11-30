@@ -2,60 +2,173 @@
     ViewData["Title"] = "Home";
 }
 
-<div class="container-fluid py-5">
-    <div class="row align-items-center justify-content-center">
-        <div class="col-md-5 text-center">
-            <img src="~/images/chatterbox-logo.png" alt="ChatterBox Logo" class="img-fluid mb-4" width="180" />
-            <h1 class="display-5 mb-3 text-dark">Welcome to ChatterBox</h1>
-            <p class="lead text-secondary">
-                Discover the power of real-time communication.
-            </p>
-            <a href="/Chat" class="btn btn-primary btn-lg">Start Chatting</a>
-        </div>
-        <div class="col-md-6 offset-md-1">
-            <p class="text-secondary">
-                ChatterBox is a cutting-edge chat application designed to revolutionize the way you communicate. With features like real-time messaging, group discussions, and seamless file sharing, ChatterBox empowers you to connect with your friends and colleagues like never before.
-            </p>
-            <p class="text-secondary">
-                Get started today and experience the future of communication.
-            </p>
-        </div>
-    </div>
-</div>
+<style>
+    .main-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
 
-<div class="container-fluid py-5 bg-light" style="background-color: rgba(240, 240, 240, 0.1) !important;">
-    <div class="row align-items-center justify-content-center">
-        <div class="col-md-8 text-center">
-            <h2 class="display-6 mb-3 text-dark">Features</h2>
-            <p class="lead text-secondary">
-                Discover the revolutionary features of ChatterBox:
-            </p>
-            <div class="row row-cols-1 row-cols-md-3 g-4">
-                <div class="col">
-                    <div class="card bg-white shadow-sm border-0 h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-chat-dots-fill fs-1 text-dark mb-3"></i>
-                            <h5 class="card-title text-dark">Real-time Messaging</h5>
-                        </div>
+    .content-card {
+        background-color: var(--white);
+        border-radius: var(--border-radius);
+        box-shadow: var(--shadow);
+        padding: 2.5rem;
+        width: 100%;
+    }
+
+    .welcome-badge {
+        display: inline-block;
+        background-color: rgba(255, 87, 87, 0.1);
+        color: var(--primary-color);
+        padding: 0.5rem 1rem;
+        border-radius: 100px;
+        font-size: 0.875rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .hero-content {
+        max-width: 600px;
+    }
+
+    .hero-title {
+        font-size: 3rem;
+        line-height: 1.2;
+        margin-bottom: 1rem;
+        color: var(--text-color);
+    }
+
+    .hero-description {
+        color: #666;
+        margin-bottom: 2rem;
+        font-size: 1.125rem;
+    }
+
+    .logo-container {
+        background: var(--white);
+        border-radius: var(--border-radius);
+        padding: 2.5rem;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+        .logo-container img {
+            width: 80%;
+            height: auto;
+        }
+
+    .cta-card {
+        background-color: var(--white);
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        text-align: center;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .btn {
+        padding: 0.875rem 1.5rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-group {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .get-started-badge {
+        background-color: rgba(255, 87, 87, 0.1);
+        color: var(--primary-color);
+        padding: 0.5rem 1rem;
+        border-radius: 100px;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+        display: inline-block;
+    }
+</style>
+
+<div class="main-container">
+    <div class="content-card">
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-5">
+                <div class="hero-content">
+                    <span class="welcome-badge">WELCOME TO CHATTERBOX</span>
+                    <h1 class="hero-title">Connect Instantly with ChatterBox</h1>
+                    <p class="hero-description">
+                        Experience real-time messaging with a modern, secure, and user-friendly interface. Stay connected with friends and collaborate with teams seamlessly.
+                    </p>
+                    <div class="btn-group">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            <a href="/Chat" class="btn btn-primary">
+                                <i class="bi bi-chat-dots-fill"></i>
+                                Open Chat
+                            </a>
+                            <a href="/Contacts" class="btn btn-outline-primary">
+                                <i class="bi bi-people-fill"></i>
+                                View Contacts
+                            </a>
+                        }
+                        else
+                        {
+                            <a href="/Identity/Account/Register" class="btn btn-primary">
+                                <i class="bi bi-person-plus-fill"></i>
+                                Get Started
+                            </a>
+                            <a href="/Identity/Account/Login" class="btn btn-outline-primary">
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                Sign In
+                            </a>
+                        }
                     </div>
                 </div>
-                <div class="col">
-                    <div class="card bg-white shadow-sm border-0 h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-people-fill fs-1 text-dark mb-3"></i>
-                            <h5 class="card-title text-dark">Group Discussions</h5>
-                        </div>
-                    </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="logo-container">
+                    <img src="~/images/chatterbox-logo.png" alt="ChatterBox Icon" />
                 </div>
-                <div class="col">
-                    <div class="card bg-white shadow-sm border-0 h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-file-earmark-fill fs-1 text-dark mb-3"></i>
-                            <h5 class="card-title text-dark">Seamless File Sharing</h5>
-                        </div>
-                    </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="cta-card">
+                    <span class="get-started-badge">Get Started</span>
+                    <h2 class="h4 mb-3">Join ChatterBox Today</h2>
+                    <p class="text-muted mb-4">Sign up now to experience the future of communication.</p>
+                    <a href="/Identity/Account/Register" class="btn btn-primary w-100">
+                        <i class="bi bi-arrow-right-circle"></i>
+                        Register Now
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Simple scroll animation using Intersection Observer
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        });
+
+        // Apply animation to sections
+        document.querySelectorAll('section').forEach(section => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(20px)';
+            section.style.transition = 'all 0.6s ease';
+            observer.observe(section);
+        });
+    });
+</script>

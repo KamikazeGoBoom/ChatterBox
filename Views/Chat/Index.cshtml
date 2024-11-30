@@ -2,15 +2,16 @@
     ViewData["Title"] = "Chat";
 }
 
-<div class="container">
-    <div class="row">
+<div class="container-fluid p-4">
+    <div class="row g-4">
         <div class="col-md-3">
-            <div class="card">
-                <div class="card-header">
-                    My Status
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-person-circle me-2"></i>
+                    <h5 class="mb-0">My Status</h5>
                 </div>
                 <div class="card-body">
-                    <select id="statusSelect" class="form-control">
+                    <select id="statusSelect" class="form-select">
                         <option value="Online">Online</option>
                         <option value="Away">Away</option>
                         <option value="Busy">Busy</option>
@@ -18,37 +19,53 @@
                     </select>
                 </div>
             </div>
-            <div class="card mt-3">
-                <div class="card-header">
-                    Online Users
+
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-people-fill me-2"></i>
+                    <h5 class="mb-0">Contacts</h5>
                 </div>
-                <div class="card-body">
-                    <div id="onlineUsersList" class="list-group">
+                <div class="card-body p-0">
+                    <div id="onlineUsersList" class="list-group list-group-flush">
                         <!-- Users will be populated here -->
                     </div>
                 </div>
             </div>
         </div>
+
         <div class="col-md-9">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Chat Messages</span>
+            <div class="chat-container">
+                <div class="chat-header">
                     <div class="d-flex align-items-center">
-                        <span id="userTypingIndicator" class="text-muted me-3" style="display: none;"></span>
-                        <span id="selectedUserName" class="text-muted"></span>
-                        <small id="userStatus" class="ms-2 badge bg-secondary"></small>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="messagesList" class="chat-messages" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;">
-                        <div class="alert alert-info">Please select a contact to start chatting.</div>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" id="messageInput" class="form-control" placeholder="Type your message..." disabled>
-                        <div class="input-group-append">
-                            <button class="btn btn-primary" id="sendButton" disabled>Send</button>
+                        <div class="user-avatar me-3">
+                            <i class="bi bi-person-circle fs-4"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0" id="selectedUserName"></h5>
+                            <small id="userStatus" class="text-muted"></small>
                         </div>
                     </div>
+                    <div>
+                        <span id="userTypingIndicator" class="text-muted" style="display: none;"></span>
+                    </div>
+                </div>
+
+                <div id="messagesList" class="chat-messages">
+                    <div class="text-center text-muted p-4">
+                        <i class="bi bi-chat-dots fs-1"></i>
+                        <p class="mt-2">Select a contact to start chatting</p>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <input type="text" 
+                           id="messageInput" 
+                           class="chat-input" 
+                           placeholder="Type your message..." 
+                           disabled>
+                    <button class="chat-send-btn" id="sendButton" disabled>
+                        <i class="bi bi-send-fill"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -103,7 +120,6 @@
             }
         }
 
-        // Handle connection events
         connection.onclose(async () => {
             console.log("Connection closed. Attempting to reconnect...");
             await startConnection();
@@ -146,29 +162,38 @@
                 };
 
                 const userContent = document.createElement('div');
-                userContent.className = 'd-flex flex-column';
+                userContent.className = 'd-flex align-items-center';
+
+                const userAvatar = document.createElement('div');
+                userAvatar.className = 'user-avatar me-3';
+                userAvatar.innerHTML = '<i class="bi bi-person-circle"></i>';
+
+                const userInfo = document.createElement('div');
+                userInfo.className = 'd-flex flex-column';
 
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = user.userName;
+                nameSpan.className = 'fw-medium';
 
-                const statusBadge = document.createElement('span');
+                const statusBadge = document.createElement('small');
                 statusBadge.id = `status-${user.id}`;
-                statusBadge.className = `badge ${getStatusBadgeClass(user.status)}`;
+                statusBadge.className = `text-muted`;
                 statusBadge.textContent = user.status || 'Offline';
 
                 const unreadBadge = document.createElement('span');
                 unreadBadge.id = `unread-${user.id}`;
-                unreadBadge.className = 'badge bg-danger';
+                unreadBadge.className = 'badge bg-danger rounded-pill';
                 unreadBadge.style.display = 'none';
                 unreadBadge.textContent = '0';
 
-                userContent.appendChild(nameSpan);
-                userContent.appendChild(statusBadge);
+                userInfo.appendChild(nameSpan);
+                userInfo.appendChild(statusBadge);
+                userContent.appendChild(userAvatar);
+                userContent.appendChild(userInfo);
                 userElement.appendChild(userContent);
                 userElement.appendChild(unreadBadge);
                 onlineUsersList.appendChild(userElement);
 
-                // Update unread count if exists
                 const unreadCount = unreadMessages.get(user.id);
                 if (unreadCount) {
                     updateUnreadBadge(user.id, unreadCount);
@@ -192,8 +217,6 @@
             enableChat();
             loadUserInfo(userId);
             loadPreviousMessages(userId);
-
-            // Clear unread messages for this user
             updateUnreadBadge(userId, 0);
             unreadMessages.delete(userId);
         }
@@ -216,19 +239,22 @@
             const messagesList = document.getElementById("messagesList");
             const messageDiv = document.createElement("div");
             messageDiv.className = `chat-message ${isReceived ? 'received' : 'sent'}`;
+
+            const time = new Date(message.timestamp || message.sentAt).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+
             messageDiv.innerHTML = `
                 <div class="message-content">
-                    <div class="message-header">
-                        <strong>${message.senderName}</strong>
-                        <small class="text-muted">${new Date(message.timestamp || message.sentAt).toLocaleTimeString()}</small>
-                    </div>
                     <div class="message-body">${escapeHtml(message.content)}</div>
+                    <small class="message-time">${time}</small>
                 </div>
             `;
+
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
 
-            // Mark message as read if we're the receiver
             if (isReceived && message.messageId) {
                 connection.invoke("MarkMessageAsRead", message.messageId);
             }
@@ -242,19 +268,14 @@
             }
         }
 
-        // SignalR event handlers
         connection.on("ReceiveMessage", function (message) {
             console.log("Received message:", message);
-
             if (selectedUserId === message.senderId) {
                 appendMessage(message, true);
             } else {
-                // Update unread count for sender
                 const currentCount = unreadMessages.get(message.senderId) || 0;
                 unreadMessages.set(message.senderId, currentCount + 1);
                 updateUnreadBadge(message.senderId, currentCount + 1);
-
-                // Show notification
                 showNotification(message.senderName, message.content);
             }
         });
@@ -269,10 +290,8 @@
             const statusElement = document.getElementById(`status-${userId}`);
             if (statusElement) {
                 statusElement.textContent = status;
-                statusElement.className = `badge ${getStatusBadgeClass(status)}`;
             }
 
-            // Update status in chat header if it's the selected user
             if (selectedUserId === userId) {
                 updateSelectedUserStatus(status);
             }
@@ -290,14 +309,12 @@
 
         connection.on("MessageRead", function (messageId) {
             console.log("Message read:", messageId);
-            // Update UI to show message has been read
             const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
             if (messageElement) {
                 messageElement.classList.add('read');
             }
         });
 
-        // UI Event handlers
         document.getElementById("sendButton").addEventListener("click", sendMessage);
         document.getElementById("messageInput").addEventListener("keypress", function (event) {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -314,7 +331,6 @@
                 });
         });
 
-        // Helper functions
         async function sendMessage() {
             if (!selectedUserId) return;
 
@@ -323,13 +339,12 @@
 
             if (message) {
                 messageInput.value = "";
-
                 try {
                     await connection.invoke("SendMessage", selectedUserId, message);
                 } catch (error) {
                     console.error(error);
                     showError('Failed to send message');
-                    messageInput.value = message; // Restore message on failure
+                    messageInput.value = message;
                 }
             }
         }
@@ -338,7 +353,6 @@
             const statusElement = document.getElementById(`status-${userId}`);
             if (statusElement) {
                 statusElement.textContent = status;
-                statusElement.className = `badge ${getStatusBadgeClass(status)}`;
             }
         }
 
@@ -346,7 +360,7 @@
             try {
                 const response = await fetch(`/Contacts/GetUser/${userId}`);
                 const user = await response.json();
-                document.getElementById('selectedUserName').textContent = `Chatting with: ${user.userName}`;
+                document.getElementById('selectedUserName').textContent = user.userName;
                 currentUserName = user.userName;
                 updateSelectedUserStatus(user.status);
             } catch (error) {
@@ -359,14 +373,11 @@
             try {
                 const response = await fetch(`/Chat/GetMessages?userId=${userId}`);
                 const messages = await response.json();
-
                 const messagesList = document.getElementById("messagesList");
                 messagesList.innerHTML = '';
-
                 messages.forEach(message => {
                     appendMessage(message, message.senderId === selectedUserId);
                 });
-
                 messagesList.scrollTop = messagesList.scrollHeight;
             } catch (error) {
                 console.error('Error loading messages:', error);
@@ -377,7 +388,6 @@
         function updateSelectedUserStatus(status) {
             const userStatus = document.getElementById('userStatus');
             userStatus.textContent = status;
-            userStatus.className = `ms-2 badge ${getStatusBadgeClass(status)}`;
         }
 
         function showNotification(title, message) {
@@ -405,7 +415,7 @@
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             `;
-            document.querySelector('.card-body').insertBefore(errorDiv, document.getElementById('messagesList'));
+            document.querySelector('.chat-container').insertBefore(errorDiv, document.getElementById('messagesList'));
 
             setTimeout(() => {
                 errorDiv.remove();
@@ -421,14 +431,12 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // Request notification permission on page load
         document.addEventListener('DOMContentLoaded', function() {
             if ("Notification" in window) {
                 Notification.requestPermission();
             }
         });
 
-        // Start the connection
         startConnection();
     </script>
 }

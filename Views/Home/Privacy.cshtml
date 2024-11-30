@@ -2,85 +2,180 @@
     ViewData["Title"] = "Privacy Policy";
 }
 
-<div class="container-fluid my-3">
-    <div class="row justify-content-center">
-        <div class="col-12">
-            <div class="mb-4">
-                <h1 class="mb-3"><i class="bi bi-shield-lock-fill me-2"></i>@ViewData["Title"]</h1>
-                <p>At ChatterBox, we are committed to protecting the privacy and security of our users. This privacy policy outlines how we collect, use, and safeguard your personal information.</p>
+<div class="container-fluid p-4">
+    <div class="row g-4">
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-shield-lock-fill me-2 text-primary"></i>
+                    <h5 class="mb-0">Privacy Policy</h5>
+                </div>
+                <div class="card-body">
+                    <p class="lead">
+                        At ChatterBox, we prioritize the security and privacy of our users.
+                        This policy outlines how we handle your personal information.
+                    </p>
+                </div>
             </div>
+        </div>
 
-            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-3">
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-person-fill me-2"></i>User Information</h2>
-                            <p class="card-text">When you create an account with ChatterBox, we collect the following information:</p>
-                            <ul class="mb-0">
-                                <li>Username</li>
-                                <li>Email address</li>
-                                <li>Password (securely hashed)</li>
-                                <li>Birthday</li>
-                                <li>User status and last seen information</li>
-                            </ul>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-person-badge-fill me-2 text-primary"></i>
+                    <h5 class="mb-0">User Data Collection</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-person-circle"></i>
+                            </div>
+                            <div>
+                                <h6>Personal Information</h6>
+                                <p class="text-muted mb-0">
+                                    We collect basic information including username, email, and optional profile details
+                                    to provide you with a personalized experience.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-calendar-check"></i>
+                            </div>
+                            <div>
+                                <h6>Usage Data</h6>
+                                <p class="text-muted mb-0">
+                                    We track your online status and last seen information to enhance the chat experience
+                                    and show availability to other users.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-chat-dots-fill me-2"></i>Message Data</h2>
-                            <p class="card-text">All messages sent and received through the ChatterBox application are stored in our secure database. This data is necessary for us to provide you with a history of your conversations and enable features like read receipts.</p>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-chat-square-text-fill me-2 text-primary"></i>
+                    <h5 class="mb-0">Message Handling</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-chat-dots"></i>
+                            </div>
+                            <div>
+                                <h6>Message Storage</h6>
+                                <p class="text-muted mb-0">
+                                    Messages are stored securely on our servers to provide message history
+                                    and enable features like offline message delivery.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-lock"></i>
+                            </div>
+                            <div>
+                                <h6>End-to-End Privacy</h6>
+                                <p class="text-muted mb-0">
+                                    Your conversations are protected and only accessible to the intended recipients.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-people-fill me-2"></i>Group Chat</h2>
-                            <p class="card-text">If you choose to participate in group chats, we will store the group information, including the group name, members, and messages. This data is necessary for us to provide the group chat functionality.</p>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-gear-fill me-2 text-primary"></i>
+                    <h5 class="mb-0">Data Management</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-trash"></i>
+                            </div>
+                            <div>
+                                <h6>Account Deletion</h6>
+                                <p class="text-muted mb-0">
+                                    You can request account deletion at any time. This will remove all your personal
+                                    information from our systems.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-download"></i>
+                            </div>
+                            <div>
+                                <h6>Data Export</h6>
+                                <p class="text-muted mb-0">
+                                    You can export your chat history and personal data at any time through your account settings.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-file-earmark-fill me-2"></i>File Uploads</h2>
-                            <p class="card-text">ChatterBox allows you to share files with your contacts and group members. Any files you upload will be stored on our secure servers, and we will maintain a record of the file metadata, such as the file name, size, and type.</p>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-shield-check-fill me-2 text-primary"></i>
+                    <h5 class="mb-0">Security Measures</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-shield-lock"></i>
+                            </div>
+                            <div>
+                                <h6>Data Protection</h6>
+                                <p class="text-muted mb-0">
+                                    We use industry-standard encryption to protect your data both in transit and at rest.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-start">
+                            <div class="user-avatar me-3">
+                                <i class="bi bi-eye-slash"></i>
+                            </div>
+                            <div>
+                                <h6>Privacy Controls</h6>
+                                <p class="text-muted mb-0">
+                                    Customize your privacy settings to control who can see your status and contact you.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-bell-fill me-2"></i>Notifications</h2>
-                            <p class="card-text">ChatterBox may send you notifications, such as message alerts and group invitations. We will store information about these notifications, including the notification type, content, and timestamp.</p>
-                        </div>
-                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-question-circle-fill me-2 text-primary"></i>
+                    <h5 class="mb-0">Questions?</h5>
                 </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-search me-2"></i>User Search</h2>
-                            <p class="card-text">The user search feature of ChatterBox allows you to find other users by their username or email address. We will store information about your search queries and results to improve the search experience.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-lock-fill me-2"></i>Data Security</h2>
-                            <p class="card-text">ChatterBox takes the security of your data seriously. We use industry-standard encryption and secure storage practices to protect your information. Your messages and files are never accessed by our team unless necessary for troubleshooting or legal purposes.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body p-3">
-                            <h2 class="card-title mb-3"><i class="bi bi-gear-fill me-2"></i>Data Retention and Deletion</h2>
-                            <p class="card-text">We will retain your data for as long as your account is active. If you choose to deactivate your account, we will anonymize or delete your personal information in accordance with our data retention policies.</p>
-                        </div>
-                    </div>
+                <div class="card-body text-center">
+                    <p class="mb-0">
+                        If you have any questions about our privacy policy, please contact our support team at
+                        <a href="mailto:support@chatterbox.com">support@chatterbox.com</a>
+                    </p>
                 </div>
             </div>
         </div>

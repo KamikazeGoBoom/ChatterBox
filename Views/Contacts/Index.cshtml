@@ -3,43 +3,70 @@
     ViewData["Title"] = "Contacts";
 }
 
-<div class="container">
-    <div class="row">
+<div class="container-fluid p-4">
+    <div class="row g-4">
         <div class="col-md-4">
-            <div class="card mb-4">
-                <div class="card-header">
-                    Add New Contact
+            <div class="card">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-person-plus-fill me-2"></i>
+                    <h5 class="mb-0">Add New Contact</h5>
                 </div>
                 <div class="card-body">
                     <div class="input-group mb-3">
-                        <input type="text" id="searchInput" class="form-control" placeholder="Search users...">
-                        <div class="input-group-append">
-                            <button class="btn btn-outline-secondary" type="button" id="searchButton">Search</button>
-                        </div>
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search by username or email...">
+                        <button class="btn btn-primary" type="button" id="searchButton">
+                            <i class="bi bi-search"></i>
+                        </button>
                     </div>
                     <div id="searchResults" class="list-group">
+                        <!-- Search results will be dynamically inserted here -->
                     </div>
                 </div>
             </div>
         </div>
+
         <div class="col-md-8">
             <div class="card">
-                <div class="card-header">
-                    My Contacts
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-people-fill me-2"></i>
+                    <h5 class="mb-0">My Contacts</h5>
                 </div>
-                <div class="card-body">
-                    <div id="contactsList" class="list-group">
-                        @foreach (var contact in Model)
+                <div class="card-body p-0">
+                    <div id="contactsList" class="list-group list-group-flush">
+                        @if (Model != null && Model.Any())
                         {
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 class="mb-1">@contact.UserName</h5>
-                                    <small class="text-muted">@contact.Email</small>
+                            @foreach (var contact in Model)
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center">
+                                            <div class="user-avatar me-3">
+                                                <i class="bi bi-person-circle"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1">@contact.UserName</h6>
+                                                <small class="text-muted">@contact.Email</small>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-primary btn-sm chat-btn" data-user-id="@contact.Id">
+                                                <i class="bi bi-chat-dots-fill me-1"></i>
+                                                Chat
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm remove-contact" data-user-id="@contact.Id">
+                                                <i class="bi bi-person-x-fill me-1"></i>
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <a href="#" class="btn btn-primary btn-sm chat-btn" data-user-id="@contact.Id">Chat</a>
-                                    <button class="btn btn-danger btn-sm remove-contact" data-user-id="@contact.Id">Remove</button>
-                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center p-4">
+                                <i class="bi bi-people fs-1 text-muted"></i>
+                                <p class="mt-2 text-muted">No contacts yet. Use the search to add new contacts.</p>
                             </div>
                         }
                     </div>
@@ -70,37 +97,77 @@
                             users.forEach(user => {
                                 const userElement = $(`
                                     <div class="list-group-item">
-                                        <h5 class="mb-1">${user.userName}</h5>
-                                        <small class="text-muted">${user.email}</small>
-                                        <button class="btn btn-primary btn-sm float-right add-contact" data-user-id="${user.id}">
-                                            Add Contact
-                                        </button>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <div class="user-avatar me-3">
+                                                    <i class="bi bi-person-circle"></i>
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-1">${user.userName}</h6>
+                                                    <small class="text-muted">${user.email}</small>
+                                                </div>
+                                            </div>
+                                            <button class="btn btn-primary btn-sm add-contact" data-user-id="${user.id}">
+                                                <i class="bi bi-person-plus-fill me-1"></i>
+                                                Add
+                                            </button>
+                                        </div>
                                     </div>
                                 `);
                                 $('#searchResults').append(userElement);
                             });
+                        })
+                        .fail(function() {
+                            $('#searchResults').html(`
+                                <div class="alert alert-danger">
+                                    Failed to search users. Please try again.
+                                </div>
+                            `);
                         });
                 }, 500);
             });
 
             $(document).on('click', '.add-contact', function() {
                 const userId = $(this).data('user-id');
+                const button = $(this);
+                button.prop('disabled', true);
+
                 $.post('/Contacts/Add', { contactId: userId })
                     .done(function(response) {
                         if (response.success) {
                             location.reload();
+                        } else {
+                            showError('Failed to add contact');
+                            button.prop('disabled', false);
                         }
+                    })
+                    .fail(function() {
+                        showError('Failed to add contact');
+                        button.prop('disabled', false);
                     });
             });
 
             $(document).on('click', '.remove-contact', function() {
                 const userId = $(this).data('user-id');
-                $.post('/Contacts/Remove', { contactId: userId })
-                    .done(function(response) {
-                        if (response.success) {
-                            location.reload();
-                        }
-                    });
+                const button = $(this);
+
+                if (confirm('Are you sure you want to remove this contact?')) {
+                    button.prop('disabled', true);
+
+                    $.post('/Contacts/Remove', { contactId: userId })
+                        .done(function(response) {
+                            if (response.success) {
+                                location.reload();
+                            } else {
+                                showError('Failed to remove contact');
+                                button.prop('disabled', false);
+                            }
+                        })
+                        .fail(function() {
+                            showError('Failed to remove contact');
+                            button.prop('disabled', false);
+                        });
+                }
             });
 
             $(document).on('click', '.chat-btn', function(e) {
@@ -108,6 +175,20 @@
                 const userId = $(this).data('user-id');
                 window.location.href = `/Chat?userId=${userId}`;
             });
+
+            function showError(message) {
+                const errorDiv = $(`
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `);
+                $('.card-body').first().prepend(errorDiv);
+
+                setTimeout(() => {
+                    errorDiv.alert('close');
+                }, 5000);
+            }
         });
     </script>
 }
