@@ -132,21 +132,56 @@
                 </div>
 
                 <div id="messagesList" class="chat-messages">
-                    @foreach (var message in ViewBag.Messages ?? Enumerable.Empty<Message>())
+                    @if (ViewBag.Messages != null && ((IEnumerable<Message>)ViewBag.Messages).Any())
                     {
-                        <div class="chat-message @(message.SenderId == ViewBag.CurrentUserId ? "sent" : "received")">
-                            <div class="message-content">
-                                <div class="message-header">
-                                    <small>@message.Sender?.UserName</small>
-                                    <small class="text-muted">
-                                        @TimeZoneInfo.ConvertTimeFromUtc(
-                                                 message.SentAt.ToUniversalTime(),
-                                                 TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila")
-                                                 ).ToString("hh:mm tt")
+                        string lastDate = null;
+                        foreach (var message in ViewBag.Messages)
+                        {
+                            var messageDate = TimeZoneInfo.ConvertTimeFromUtc(
+                            message.SentAt.ToUniversalTime(),
+                            TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila")
+                            );
+                            var currentDate = messageDate.ToString("MM/dd/yyyy");
+
+                            if (lastDate != currentDate)
+                            {
+                                <div class="date-separator">
+                                    <span>
+                                        @if (messageDate.Date == DateTime.Now.Date)
+                                        {
+                                            @:Today
+                                        }
+                                        else if (messageDate.Date == DateTime.Now.Date.AddDays(-1))
+                                        {
+                                            @:Yesterday
+                                        }
+                                        else
+                                        {
+                                            @messageDate.ToString("MMMM dd, yyyy")
+                                        }
+                                    </span>
+                                </div>
+                                lastDate = currentDate;
+                            }
+
+                            <div class="chat-message @(message.SenderId == ViewBag.CurrentUserId ? "sent" : "received")">
+                                <div class="message-content">
+                                    <div class="message-header">
+                                        <small>@message.Sender?.UserName</small>
+                                    </div>
+                                    <div class="message-body">@message.Content</div>
+                                    <small class="message-time">
+                                        @messageDate.ToString("hh:mm tt")
                                     </small>
                                 </div>
-                                <div class="message-body">@message.Content</div>
                             </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted p-4">
+                            <i class="bi bi-chat-dots fs-1"></i>
+                            <p class="mt-2">No messages yet. Start the conversation!</p>
                         </div>
                     }
                 </div>
@@ -179,6 +214,7 @@
         let retryCount = 0;
         const maxRetries = 5;
         let isConnected = false;
+        let lastMessageDate = null;
 
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/chatHub")
@@ -191,20 +227,73 @@
         const connectionStatus = document.getElementById("connectionStatus");
         const messagesList = document.getElementById("messagesList");
 
-        function formatTime(dateString) {
-            return new Date(dateString).toLocaleString('en-PH', {
+        function formatMessageDateTime(dateString) {
+            const messageDate = new Date(dateString);
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const isToday = messageDate.toDateString() === now.toDateString();
+            const isYesterday = messageDate.toDateString() === yesterday.toDateString();
+            
+            const time = messageDate.toLocaleTimeString('en-PH', {
                 timeZone: 'Asia/Manila',
                 hour: '2-digit',
                 minute: '2-digit',
                 hour12: true
             });
+
+            if (isToday) {
+                return time;
+            } else if (isYesterday) {
+                return `Yesterday, ${time}`;
+            } else {
+                return messageDate.toLocaleString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            }
         }
 
-        function updateConnectionState(isConnected) {
-            if (sendButton) {
-                sendButton.disabled = !isConnected;
+        function shouldShowDateSeparator(messageDate) {
+            const currentDate = new Date(messageDate).toDateString();
+            if (currentDate !== lastMessageDate) {
+                lastMessageDate = currentDate;
+                return true;
             }
-            connectionStatus.style.display = isConnected ? "none" : "block";
+            return false;
+        }
+
+        function createDateSeparator(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            let dateText;
+            if (date.toDateString() === now.toDateString()) {
+                dateText = 'Today';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                dateText = 'Yesterday';
+            } else {
+                dateText = date.toLocaleDateString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            }
+
+            const separator = document.createElement('div');
+            separator.className = 'date-separator';
+            separator.innerHTML = `<span>${dateText}</span>`;
+            return separator;
         }
 
         async function startConnection() {
@@ -247,22 +336,36 @@
         });
 
         connection.on("ReceiveGroupMessage", function (message) {
+            const messageDate = new Date(message.sentAt);
+            if (shouldShowDateSeparator(messageDate)) {
+                messagesList.appendChild(createDateSeparator(messageDate));
+            }
+
             const isCurrentUser = message.senderId === '@ViewBag.CurrentUserId';
-            const formattedTime = formatTime(message.sentAt);
+            const formattedTime = formatMessageDateTime(message.sentAt);
 
             const messageDiv = document.createElement("div");
-            messageDiv.className = `message mb-2 ${isCurrentUser ? "text-end" : ""}`;
+            messageDiv.className = `chat-message ${isCurrentUser ? "sent" : "received"}`;
             messageDiv.innerHTML = `
-                <small class="text-muted">${message.senderName}</small>
-                <div class="${isCurrentUser ? "bg-primary text-white" : "bg-light"} d-inline-block p-2 rounded">
-                    ${escapeHtml(message.content)}
+                <div class="message-content">
+                    <div class="message-header">
+                        <small>${message.senderName}</small>
+                    </div>
+                    <div class="message-body">${escapeHtml(message.content)}</div>
+                    <small class="message-time">${formattedTime}</small>
                 </div>
-                <small class="text-muted">${formattedTime}</small>
             `;
 
             messagesList.appendChild(messageDiv);
             messagesList.scrollTop = messagesList.scrollHeight;
         });
+
+        function updateConnectionState(isConnected) {
+            if (sendButton) {
+                sendButton.disabled = !isConnected;
+            }
+            connectionStatus.style.display = isConnected ? "none" : "block";
+        }
 
         function escapeHtml(unsafe) {
             return unsafe
@@ -310,18 +413,47 @@
 
         startConnection().then(scrollToBottom);
 
-        window.addEventListener('beforeunload', async () => {
-            if (isConnected) {
-                try {
-                    await connection.invoke("LeaveGroup", groupId);
-                    await connection.stop();
-                } catch (err) {
-                    console.error("Error during cleanup:", err);
-                }
-            }
-        });
+                window.addEventListener('beforeunload', async () => {
+                    if (isConnected) {
+                        try {
+                            await connection.invoke("LeaveGroup", groupId);
+                            await connection.stop();
+                        } catch (err) {
+                            console.error("Error during cleanup:", err);
+                        }
+                    }
+                });
 
-        const observer = new MutationObserver(scrollToBottom);
-        observer.observe(messagesList, { childList: true });
+                const observer = new MutationObserver(scrollToBottom);
+                observer.observe(messagesList, { childList: true });
     </script>
+
+    <style>
+        /* Only keeping the date separator styles */
+        .date-separator {
+            text-align: center;
+            margin: 20px 0;
+            position: relative;
+        }
+
+            .date-separator::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 50%;
+                width: 100%;
+                height: 1px;
+                background: #e0e0e0;
+                z-index: 1;
+            }
+
+            .date-separator span {
+                background: white;
+                padding: 0 10px;
+                color: #666;
+                font-size: 0.9em;
+                position: relative;
+                z-index: 2;
+            }
+    </style>
 }
