@@ -44,7 +44,9 @@
 
         const deleteAllBtn = document.getElementById('deleteAllBtn');
         if (deleteAllBtn) {
-            deleteAllBtn.addEventListener('click', () => this.deleteAllNotifications());
+            deleteAllBtn.addEventListener('click', () => {
+                this.deleteAllNotifications();
+            });
         }
     },
 
@@ -119,9 +121,9 @@
             });
             if (response.ok) {
                 console.log(`Notification ${notificationId} marked as read.`);
-                await this.loadInitialNotifications();
                 this.unreadCount = Math.max(0, this.unreadCount - 1);
                 this.updateUnreadBadge();
+                location.reload();
             } else {
                 console.error('Failed to mark notification as read.');
             }
@@ -135,9 +137,9 @@
             const response = await fetch(`/Notification/MarkAllAsRead`, { method: 'POST' });
             if (response.ok) {
                 console.log('All notifications marked as read.');
-                await this.loadInitialNotifications();
                 this.unreadCount = 0;
                 this.updateUnreadBadge();
+                location.reload();
             } else {
                 console.error('Failed to mark all notifications as read.');
             }
@@ -155,7 +157,11 @@
             });
             if (response.ok) {
                 console.log(`Notification ${notificationId} deleted.`);
-                await this.loadInitialNotifications();
+                if (!this.isRead) {
+                    this.unreadCount = Math.max(0, this.unreadCount - 1);
+                    this.updateUnreadBadge();
+                }
+                location.reload();
             } else {
                 console.error('Failed to delete notification.');
             }
@@ -169,9 +175,7 @@
             const response = await fetch(`/Notification/DeleteAll`, { method: 'POST' });
             if (response.ok) {
                 console.log('All notifications deleted.');
-                await this.loadInitialNotifications();
-                this.unreadCount = 0;
-                this.updateUnreadBadge();
+                location.reload();
             } else {
                 console.error('Failed to delete all notifications.');
             }
