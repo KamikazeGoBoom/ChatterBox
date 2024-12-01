@@ -84,23 +84,79 @@
         let currentUserName = '';
         let typingTimer = null;
         const unreadMessages = new Map();
+        let lastMessageDate = null;
 
         // Initialize from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         selectedUserId = urlParams.get('userId');
 
-        // Time formatting function for Philippines timezone (UTC+8)
-        function formatTime(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleString('en-PH', {
+        function formatMessageDateTime(dateString) {
+            const messageDate = new Date(dateString);
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const isToday = messageDate.toDateString() === now.toDateString();
+            const isYesterday = messageDate.toDateString() === yesterday.toDateString();
+            
+            const time = messageDate.toLocaleTimeString('en-PH', {
                 timeZone: 'Asia/Manila',
                 hour: '2-digit',
                 minute: '2-digit',
-                hour12: true,
-                month: 'short',
-                day: '2-digit',
-                year: 'numeric'
+                hour12: true
             });
+
+            if (isToday) {
+                return time;
+            } else if (isYesterday) {
+                return `Yesterday, ${time}`;
+            } else {
+                return messageDate.toLocaleString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            }
+        }
+
+        function shouldShowDateSeparator(messageDate) {
+            const currentDate = new Date(messageDate).toDateString();
+            if (currentDate !== lastMessageDate) {
+                lastMessageDate = currentDate;
+                return true;
+            }
+            return false;
+        }
+
+        function createDateSeparator(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            let dateText;
+            if (date.toDateString() === now.toDateString()) {
+                dateText = 'Today';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                dateText = 'Yesterday';
+            } else {
+                dateText = date.toLocaleDateString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            }
+
+            const separator = document.createElement('div');
+            separator.className = 'date-separator';
+            separator.innerHTML = `<span>${dateText}</span>`;
+            return separator;
         }
 
         async function startConnection() {
@@ -237,18 +293,21 @@
 
         function appendMessage(message, isReceived) {
             const messagesList = document.getElementById("messagesList");
+            const messageDate = new Date(message.timestamp || message.sentAt);
+
+            if (shouldShowDateSeparator(messageDate)) {
+                messagesList.appendChild(createDateSeparator(messageDate));
+            }
+
             const messageDiv = document.createElement("div");
             messageDiv.className = `chat-message ${isReceived ? 'received' : 'sent'}`;
 
-            const time = new Date(message.timestamp || message.sentAt).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
+            const formattedTime = formatMessageDateTime(messageDate);
 
             messageDiv.innerHTML = `
                 <div class="message-content">
                     <div class="message-body">${escapeHtml(message.content)}</div>
-                    <small class="message-time">${time}</small>
+                    <small class="message-time">${formattedTime}</small>
                 </div>
             `;
 
@@ -370,73 +429,102 @@
         }
 
         async function loadPreviousMessages(userId) {
-            try {
-                const response = await fetch(`/Chat/GetMessages?userId=${userId}`);
-                const messages = await response.json();
-                const messagesList = document.getElementById("messagesList");
-                messagesList.innerHTML = '';
-                messages.forEach(message => {
-                    appendMessage(message, message.senderId === selectedUserId);
-                });
-                messagesList.scrollTop = messagesList.scrollHeight;
-            } catch (error) {
-                console.error('Error loading messages:', error);
-                showError('Failed to load message history');
-            }
-        }
+                    try {
+                        const response = await fetch(`/Chat/GetMessages?userId=${userId}`);
+                        const messages = await response.json();
+                        const messagesList = document.getElementById("messagesList");
+                        messagesList.innerHTML = '';
+                        lastMessageDate = null; // Reset the last message date
+                        messages.forEach(message => {
+                            appendMessage(message, message.senderId === selectedUserId);
+                        });
+                        messagesList.scrollTop = messagesList.scrollHeight;
+                    } catch (error) {
+                        console.error('Error loading messages:', error);
+                        showError('Failed to load message history');
+                    }
+                }
 
-        function updateSelectedUserStatus(status) {
-            const userStatus = document.getElementById('userStatus');
-            userStatus.textContent = status;
-        }
+                function updateSelectedUserStatus(status) {
+                    const userStatus = document.getElementById('userStatus');
+                    userStatus.textContent = status;
+                }
 
-        function showNotification(title, message) {
-            if (Notification.permission === "granted") {
-                new Notification(title, {
-                    body: message,
-                    icon: '/favicon.ico'
-                });
-            } else if (Notification.permission !== "denied") {
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") {
+                function showNotification(title, message) {
+                    if (Notification.permission === "granted") {
                         new Notification(title, {
                             body: message,
                             icon: '/favicon.ico'
                         });
+                    } else if (Notification.permission !== "denied") {
+                        Notification.requestPermission().then(permission => {
+                            if (permission === "granted") {
+                                new Notification(title, {
+                                    body: message,
+                                    icon: '/favicon.ico'
+                                });
+                            }
+                        });
+                    }
+                }
+
+                function showError(message) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    errorDiv.innerHTML = `
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.querySelector('.chat-container').insertBefore(errorDiv, document.getElementById('messagesList'));
+
+                    setTimeout(() => {
+                        errorDiv.remove();
+                    }, 5000);
+                }
+
+                function escapeHtml(unsafe) {
+                    return unsafe
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#039;");
+                }
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    if ("Notification" in window) {
+                        Notification.requestPermission();
                     }
                 });
-            }
-        }
 
-        function showError(message) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-            errorDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
-            document.querySelector('.chat-container').insertBefore(errorDiv, document.getElementById('messagesList'));
-
-            setTimeout(() => {
-                errorDiv.remove();
-            }, 5000);
-        }
-
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            if ("Notification" in window) {
-                Notification.requestPermission();
-            }
-        });
-
-        startConnection();
+                startConnection();
     </script>
+
+    <style>
+        .date-separator {
+            text-align: center;
+            margin: 20px 0;
+            position: relative;
+        }
+
+            .date-separator::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 50%;
+                width: 100%;
+                height: 1px;
+                background: #e0e0e0;
+                z-index: 1;
+            }
+
+            .date-separator span {
+                background: white;
+                padding: 0 10px;
+                color: #666;
+                font-size: 0.9em;
+                position: relative;
+                z-index: 2;
+            }
+    </style>
 }
