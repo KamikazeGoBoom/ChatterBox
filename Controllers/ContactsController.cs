@@ -27,11 +27,30 @@ namespace ChatterBox.Controllers
         public async Task<IActionResult> Index()
         {
             var currentUser = await _userManager.GetUserAsync(User);
+
+            // Get accepted contacts
             var contacts = await _context.Contacts
                 .Include(c => c.ContactUser)
-                .Where(c => c.UserId == currentUser.Id && !c.IsBlocked)
+                .Where(c => c.UserId == currentUser.Id && !c.IsBlocked && c.Status == ContactStatus.Accepted)
                 .Select(c => c.ContactUser)
                 .ToListAsync();
+
+            // Get pending incoming requests
+            var pendingRequests = await _context.Contacts
+                .Include(c => c.User)
+                .Where(c => c.ContactUserId == currentUser.Id && c.Status == ContactStatus.Pending)
+                .Select(c => c.User)
+                .ToListAsync();
+
+            // Get pending outgoing requests
+            var outgoingRequests = await _context.Contacts
+                .Include(c => c.ContactUser)
+                .Where(c => c.UserId == currentUser.Id && c.Status == ContactStatus.Pending)
+                .Select(c => c.ContactUser)
+                .ToListAsync();
+
+            ViewData["PendingRequests"] = pendingRequests;
+            ViewData["OutgoingRequests"] = outgoingRequests;
 
             return View(contacts);
         }
@@ -41,7 +60,7 @@ namespace ChatterBox.Controllers
             var currentUser = await _userManager.GetUserAsync(User);
             var contacts = await _context.Contacts
                 .Include(c => c.ContactUser)
-                .Where(c => c.UserId == currentUser.Id && !c.IsBlocked)
+                .Where(c => c.UserId == currentUser.Id && !c.IsBlocked && c.Status == ContactStatus.Accepted)
                 .Select(c => new
                 {
                     id = c.ContactUser.Id,
@@ -56,8 +75,6 @@ namespace ChatterBox.Controllers
         public async Task<IActionResult> GetUser(string id)
         {
             var user = await _userManager.FindByIdAsync(id);
-            if (user == null)
-                return NotFound();
             return Json(new { id = user.Id, userName = user.UserName, status = user.Status });
         }
 
@@ -68,17 +85,16 @@ namespace ChatterBox.Controllers
                 return Json(new List<object>());
 
             var currentUser = await _userManager.GetUserAsync(User);
-            if (currentUser == null)
-                return Json(new List<object>());
 
-            var currentContacts = await _context.Contacts
-                .Where(c => c.UserId == currentUser.Id)
-                .Select(c => c.ContactUserId)
+            // Get all existing contacts and requests
+            var existingContacts = await _context.Contacts
+                .Where(c => c.UserId == currentUser.Id || c.ContactUserId == currentUser.Id)
+                .Select(c => c.UserId == currentUser.Id ? c.ContactUserId : c.UserId)
                 .ToListAsync();
 
             var users = await _userManager.Users
                 .Where(u => u.Id != currentUser.Id &&
-                           !currentContacts.Contains(u.Id) &&
+                           !existingContacts.Contains(u.Id) &&
                            (u.UserName.Contains(searchTerm) || u.Email.Contains(searchTerm)))
                 .Take(10)
                 .Select(u => new { u.Id, u.UserName, u.Email })
@@ -101,27 +117,119 @@ namespace ChatterBox.Controllers
                     return Json(new { success = false, message = "Contact user not found" });
 
                 var existingContact = await _context.Contacts
-                    .FirstOrDefaultAsync(c => c.UserId == currentUser.Id && c.ContactUserId == contactId);
+                    .FirstOrDefaultAsync(c =>
+                        (c.UserId == currentUser.Id && c.ContactUserId == contactId) ||
+                        (c.UserId == contactId && c.ContactUserId == currentUser.Id));
 
                 if (existingContact != null)
-                    return Json(new { success = false, message = "Contact already exists" });
+                    return Json(new { success = false, message = "Contact request already exists" });
 
                 var contact = new Contact
                 {
                     UserId = currentUser.Id,
                     ContactUserId = contactId,
                     CreatedAt = DateTime.UtcNow,
-                    IsBlocked = false
+                    IsBlocked = false,
+                    Status = ContactStatus.Pending
                 };
 
                 _context.Contacts.Add(contact);
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true, message = "Contact request sent" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding contact");
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> WithdrawRequest(string contactId)
+        {
+            try
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+                var request = await _context.Contacts
+                    .FirstOrDefaultAsync(c => c.UserId == currentUser.Id &&
+                                            c.ContactUserId == contactId &&
+                                            c.Status == ContactStatus.Pending);
+
+                if (request == null)
+                    return Json(new { success = false, message = "Request not found" });
+
+                _context.Contacts.Remove(request);
                 await _context.SaveChangesAsync();
 
                 return Json(new { success = true });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding contact");
+                _logger.LogError(ex, "Error withdrawing contact request");
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> AcceptRequest(string userId)
+        {
+            try
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+                var request = await _context.Contacts
+                    .FirstOrDefaultAsync(c => c.UserId == userId &&
+                                            c.ContactUserId == currentUser.Id &&
+                                            c.Status == ContactStatus.Pending);
+
+                if (request == null)
+                    return Json(new { success = false, message = "Request not found" });
+
+                request.Status = ContactStatus.Accepted;
+
+                // Create reciprocal contact
+                var reciprocalContact = new Contact
+                {
+                    UserId = currentUser.Id,
+                    ContactUserId = userId,
+                    Status = ContactStatus.Accepted,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Contacts.Add(reciprocalContact);
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error accepting contact request");
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeclineRequest(string userId)
+        {
+            try
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+                var request = await _context.Contacts
+                    .FirstOrDefaultAsync(c => c.UserId == userId &&
+                                            c.ContactUserId == currentUser.Id &&
+                                            c.Status == ContactStatus.Pending);
+
+                if (request == null)
+                    return Json(new { success = false, message = "Request not found" });
+
+                _context.Contacts.Remove(request);
+                await _context.SaveChangesAsync();
+
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error declining contact request");
                 return Json(new { success = false, message = ex.Message });
             }
         }
@@ -132,12 +240,16 @@ namespace ChatterBox.Controllers
             try
             {
                 var currentUser = await _userManager.GetUserAsync(User);
-                var contact = await _context.Contacts
-                    .FirstOrDefaultAsync(c => c.UserId == currentUser.Id && c.ContactUserId == contactId);
 
-                if (contact != null)
+                // Remove both directions of the contact relationship
+                var contacts = await _context.Contacts
+                    .Where(c => (c.UserId == currentUser.Id && c.ContactUserId == contactId) ||
+                               (c.UserId == contactId && c.ContactUserId == currentUser.Id))
+                    .ToListAsync();
+
+                if (contacts.Any())
                 {
-                    _context.Contacts.Remove(contact);
+                    _context.Contacts.RemoveRange(contacts);
                     await _context.SaveChangesAsync();
                     return Json(new { success = true });
                 }

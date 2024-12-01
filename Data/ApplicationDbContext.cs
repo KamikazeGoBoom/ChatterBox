@@ -11,6 +11,7 @@ namespace ChatterBox.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
+            // Increase command timeout for migrations
             Database.SetCommandTimeout(60);
         }
 
@@ -33,6 +34,7 @@ namespace ChatterBox.Data
 
             foreach (var entityEntry in entries)
             {
+                // Handle created timestamps
                 if (entityEntry.State == EntityState.Added)
                 {
                     switch (entityEntry.Entity)
@@ -60,6 +62,7 @@ namespace ChatterBox.Data
                     }
                 }
 
+                // Handle LastSeen updates for ApplicationUser
                 if (entityEntry.Entity is ApplicationUser user && entityEntry.State == EntityState.Modified)
                 {
                     var lastSeenProperty = entityEntry.Property("LastSeen");
@@ -97,12 +100,17 @@ namespace ChatterBox.Data
 
                 entity.Property(m => m.SentAt)
                     .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+
+                // Add indexes for message querying
+                entity.HasIndex(m => m.SentAt);
+                entity.HasIndex(m => new { m.SenderId, m.ReceiverId });
+                entity.HasIndex(m => m.GroupId);
             });
 
             // Contact configurations
             builder.Entity<Contact>(entity =>
             {
-                entity.HasKey(c => c.Id);  // Changed from ContactId to Id
+                entity.HasKey(c => c.Id);  // Using Id instead of ContactId
 
                 entity.HasOne(c => c.User)
                     .WithMany()
@@ -128,6 +136,9 @@ namespace ChatterBox.Data
 
                 entity.Property(g => g.CreatedAt)
                     .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+
+                // Add index for group querying
+                entity.HasIndex(g => g.CreatedAt);
             });
 
             // GroupMember configurations
@@ -147,6 +158,9 @@ namespace ChatterBox.Data
 
                 entity.Property(gm => gm.JoinedAt)
                     .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+
+                // Add index for group member querying
+                entity.HasIndex(gm => gm.JoinedAt);
             });
 
             // Notification configurations
@@ -159,6 +173,10 @@ namespace ChatterBox.Data
 
                 entity.Property(n => n.CreatedAt)
                     .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+
+                // Add indexes for notification querying
+                entity.HasIndex(n => n.UserId);
+                entity.HasIndex(n => n.CreatedAt);
             });
         }
     }

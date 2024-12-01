@@ -1,6 +1,8 @@
 ﻿@model IEnumerable<ChatterBox.Models.ApplicationUser>
 @{
     ViewData["Title"] = "Contacts";
+    var pendingRequests = ViewData["PendingRequests"] as List<ChatterBox.Models.ApplicationUser>;
+    var outgoingRequests = ViewData["OutgoingRequests"] as List<ChatterBox.Models.ApplicationUser>;
 }
 
 <div class="container-fluid p-4">
@@ -23,6 +25,82 @@
                     </div>
                 </div>
             </div>
+
+            @if (outgoingRequests != null && outgoingRequests.Any())
+            {
+                <div class="card mt-4">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-arrow-right-circle me-2"></i>
+                        <h5 class="mb-0">Sent Requests</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var request in outgoingRequests)
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center">
+                                            <div class="user-avatar me-3">
+                                                <i class="bi bi-person-circle"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1">@request.UserName</h6>
+                                                <small class="text-muted">@request.Email</small>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <button class="btn btn-outline-danger btn-sm withdraw-request" data-user-id="@request.Id">
+                                                <i class="bi bi-x-circle me-1"></i>
+                                                Withdraw
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (pendingRequests != null && pendingRequests.Any())
+            {
+                <div class="card mt-4">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-clock-history me-2"></i>
+                        <h5 class="mb-0">Pending Requests</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var request in pendingRequests)
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center">
+                                            <div class="user-avatar me-3">
+                                                <i class="bi bi-person-circle"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1">@request.UserName</h6>
+                                                <small class="text-muted">@request.Email</small>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-success btn-sm accept-request" data-user-id="@request.Id">
+                                                <i class="bi bi-check-lg me-1"></i>
+                                                Accept
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm decline-request" data-user-id="@request.Id">
+                                                <i class="bi bi-x-lg me-1"></i>
+                                                Decline
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="col-md-8">
@@ -127,37 +205,93 @@
                 }, 500);
             });
 
-                    $(document).on('click', '.add-contact', function() {
-            const userId = $(this).data('user-id');
-            const button = $(this);
-            button.prop('disabled', true);
+            $(document).on('click', '.add-contact', function() {
+                const userId = $(this).data('user-id');
+                const button = $(this);
+                button.prop('disabled', true);
 
-            // Create form data
-            const formData = new FormData();
-            formData.append('contactId', userId);
-
-            $.ajax({
-                url: '/Contacts/Add',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    console.log('Server response:', response); // Debug log
-                    if (response.success) {
-                        location.reload();
-                    } else {
-                        showError(response.message || 'Failed to add contact');
+                $.ajax({
+                    url: '/Contacts/Add',
+                    type: 'POST',
+                    data: { contactId: userId },
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            showError(response.message || 'Failed to add contact');
+                            button.prop('disabled', false);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showError('Failed to add contact: ' + error);
                         button.prop('disabled', false);
                     }
-                },
-                error: function(xhr, status, error) {
-                    console.error('Ajax error:', { xhr, status, error }); // Debug log
-                    showError('Failed to add contact: ' + (xhr.responseJSON?.message || error));
-                    button.prop('disabled', false);
-                }
+                });
             });
-        });
+
+            $(document).on('click', '.withdraw-request', function() {
+                const userId = $(this).data('user-id');
+                const button = $(this);
+                button.prop('disabled', true);
+
+                $.ajax({
+                    url: '/Contacts/WithdrawRequest',
+                    type: 'POST',
+                    data: { contactId: userId },
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            showError(response.message || 'Failed to withdraw request');
+                            button.prop('disabled', false);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showError('Failed to withdraw request: ' + error);
+                        button.prop('disabled', false);
+                    }
+                });
+            });
+
+            $(document).on('click', '.accept-request', function() {
+                const userId = $(this).data('user-id');
+                const button = $(this);
+                button.prop('disabled', true);
+
+                $.post('/Contacts/AcceptRequest', { userId: userId })
+                    .done(function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            showError(response.message || 'Failed to accept request');
+                            button.prop('disabled', false);
+                        }
+                    })
+                    .fail(function() {
+                        showError('Failed to accept request');
+                        button.prop('disabled', false);
+                    });
+            });
+
+            $(document).on('click', '.decline-request', function() {
+                const userId = $(this).data('user-id');
+                const button = $(this);
+                button.prop('disabled', true);
+
+                $.post('/Contacts/DeclineRequest', { userId: userId })
+                    .done(function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            showError(response.message || 'Failed to decline request');
+                            button.prop('disabled', false);
+                        }
+                    })
+                    .fail(function() {
+                        showError('Failed to decline request');
+                        button.prop('disabled', false);
+                    });
+            });
 
             $(document).on('click', '.remove-contact', function() {
                 const userId = $(this).data('user-id');

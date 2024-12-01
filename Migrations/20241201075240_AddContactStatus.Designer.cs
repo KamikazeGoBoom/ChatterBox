@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ChatterBox.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241201071831_UpdateContactPrimaryKey")]
-    partial class UpdateContactPrimaryKey
+    [Migration("20241201075240_AddContactStatus")]
+    partial class AddContactStatus
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -125,6 +125,9 @@ namespace ChatterBox.Migrations
                     b.Property<bool>("IsBlocked")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -163,6 +166,8 @@ namespace ChatterBox.Migrations
 
                     b.HasKey("GroupId");
 
+                    b.HasIndex("CreatedAt");
+
                     b.HasIndex("CreatedById");
 
                     b.ToTable("Groups");
@@ -187,6 +192,8 @@ namespace ChatterBox.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.HasKey("GroupId", "UserId");
+
+                    b.HasIndex("JoinedAt");
 
                     b.HasIndex("UserId");
 
@@ -232,7 +239,9 @@ namespace ChatterBox.Migrations
 
                     b.HasIndex("ReceiverId");
 
-                    b.HasIndex("SenderId");
+                    b.HasIndex("SentAt");
+
+                    b.HasIndex("SenderId", "ReceiverId");
 
                     b.ToTable("Messages");
                 });
@@ -278,6 +287,8 @@ namespace ChatterBox.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("NotificationId");
+
+                    b.HasIndex("CreatedAt");
 
                     b.HasIndex("UserId");
 
