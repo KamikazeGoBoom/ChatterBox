@@ -11,7 +11,6 @@ namespace ChatterBox.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
-            // Increase command timeout for migrations
             Database.SetCommandTimeout(60);
         }
 
@@ -34,7 +33,6 @@ namespace ChatterBox.Data
 
             foreach (var entityEntry in entries)
             {
-                // Handle created timestamps
                 if (entityEntry.State == EntityState.Added)
                 {
                     switch (entityEntry.Entity)
@@ -62,7 +60,6 @@ namespace ChatterBox.Data
                     }
                 }
 
-                // Handle LastSeen updates for ApplicationUser
                 if (entityEntry.Entity is ApplicationUser user && entityEntry.State == EntityState.Modified)
                 {
                     var lastSeenProperty = entityEntry.Property("LastSeen");
@@ -81,87 +78,88 @@ namespace ChatterBox.Data
             base.OnModelCreating(builder);
 
             // Message configurations
-            builder.Entity<Message>()
-                .HasOne(m => m.Sender)
-                .WithMany()
-                .HasForeignKey(m => m.SenderId)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.Entity<Message>(entity =>
+            {
+                entity.HasOne(m => m.Sender)
+                    .WithMany()
+                    .HasForeignKey(m => m.SenderId)
+                    .OnDelete(DeleteBehavior.Restrict);
 
-            builder.Entity<Message>()
-                .HasOne(m => m.Receiver)
-                .WithMany()
-                .HasForeignKey(m => m.ReceiverId)
-                .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(m => m.Receiver)
+                    .WithMany()
+                    .HasForeignKey(m => m.ReceiverId)
+                    .OnDelete(DeleteBehavior.Restrict);
 
-            builder.Entity<Message>()
-                .HasOne(m => m.Group)
-                .WithMany()
-                .HasForeignKey(m => m.GroupId)
-                .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(m => m.Group)
+                    .WithMany()
+                    .HasForeignKey(m => m.GroupId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Property(m => m.SentAt)
+                    .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+            });
 
             // Contact configurations
-            builder.Entity<Contact>()
-                .HasOne(c => c.User)
-                .WithMany()
-                .HasForeignKey(c => c.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.Entity<Contact>(entity =>
+            {
+                entity.HasKey(c => c.Id);  // Changed from ContactId to Id
 
-            builder.Entity<Contact>()
-                .HasOne(c => c.ContactUser)
-                .WithMany()
-                .HasForeignKey(c => c.ContactUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(c => c.User)
+                    .WithMany()
+                    .HasForeignKey(c => c.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.ContactUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.ContactUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Property(c => c.CreatedAt)
+                    .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+            });
 
             // Group configurations
-            builder.Entity<Group>()
-                .HasOne(g => g.CreatedBy)
-                .WithMany()
-                .HasForeignKey(g => g.CreatedById)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.Entity<Group>(entity =>
+            {
+                entity.HasOne(g => g.CreatedBy)
+                    .WithMany()
+                    .HasForeignKey(g => g.CreatedById)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Property(g => g.CreatedAt)
+                    .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+            });
 
             // GroupMember configurations
-            builder.Entity<GroupMember>()
-                .HasKey(gm => new { gm.GroupId, gm.UserId });
+            builder.Entity<GroupMember>(entity =>
+            {
+                entity.HasKey(gm => new { gm.GroupId, gm.UserId });
 
-            builder.Entity<GroupMember>()
-                .HasOne(gm => gm.Group)
-                .WithMany(g => g.Members)
-                .HasForeignKey(gm => gm.GroupId)
-                .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(gm => gm.Group)
+                    .WithMany(g => g.Members)
+                    .HasForeignKey(gm => gm.GroupId)
+                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.Entity<GroupMember>()
-                .HasOne(gm => gm.User)
-                .WithMany()
-                .HasForeignKey(gm => gm.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(gm => gm.User)
+                    .WithMany()
+                    .HasForeignKey(gm => gm.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Property(gm => gm.JoinedAt)
+                    .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+            });
 
             // Notification configurations
-            builder.Entity<Notification>()
-                .HasOne(n => n.User)
-                .WithMany()
-                .HasForeignKey(n => n.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+            builder.Entity<Notification>(entity =>
+            {
+                entity.HasOne(n => n.User)
+                    .WithMany()
+                    .HasForeignKey(n => n.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
 
-            // Configure default values for timestamps using Philippines time (UTC+8)
-            builder.Entity<Message>()
-                .Property(m => m.SentAt)
-                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
-
-            builder.Entity<Notification>()
-                .Property(n => n.CreatedAt)
-                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
-
-            builder.Entity<Contact>()
-                .Property(c => c.CreatedAt)
-                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
-
-            builder.Entity<Group>()
-                .Property(g => g.CreatedAt)
-                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
-
-            builder.Entity<GroupMember>()
-                .Property(gm => gm.JoinedAt)
-                .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+                entity.Property(n => n.CreatedAt)
+                    .HasDefaultValueSql("DATEADD(HOUR, 8, GETUTCDATE())");
+            });
         }
     }
 }

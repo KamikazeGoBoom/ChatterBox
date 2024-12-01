@@ -8,6 +8,16 @@
             await this.setupSignalRConnection();
             this.setupEventListeners();
             await this.loadInitialNotifications();
+
+            // Remove mark all read button from dropdown if it exists
+            const markAllReadBtn = document.getElementById('markAllRead');
+            if (markAllReadBtn && markAllReadBtn.closest('.dropdown-menu')) {
+                markAllReadBtn.parentElement.remove();
+                const divider = document.querySelector('.dropdown-divider');
+                if (divider) {
+                    divider.remove();
+                }
+            }
         } catch (error) {
             console.error('Error initializing notification system:', error);
         }
@@ -31,11 +41,6 @@
                 this.deleteNotification(notificationId);
             }
         });
-
-        const markAllBtn = document.getElementById('markAllAsReadBtn');
-        if (markAllBtn) {
-            markAllBtn.addEventListener('click', () => this.markAllAsRead());
-        }
 
         const deleteAllBtn = document.getElementById('deleteAllBtn');
         if (deleteAllBtn) {
@@ -114,9 +119,9 @@
             });
             if (response.ok) {
                 console.log(`Notification ${notificationId} marked as read.`);
-
-                // Refresh the page after marking as read
-                window.location.reload();
+                await this.loadInitialNotifications();
+                this.unreadCount = Math.max(0, this.unreadCount - 1);
+                this.updateUnreadBadge();
             } else {
                 console.error('Failed to mark notification as read.');
             }
@@ -130,9 +135,9 @@
             const response = await fetch(`/Notification/MarkAllAsRead`, { method: 'POST' });
             if (response.ok) {
                 console.log('All notifications marked as read.');
-
-                // Refresh the page after marking all as read
-                window.location.reload();
+                await this.loadInitialNotifications();
+                this.unreadCount = 0;
+                this.updateUnreadBadge();
             } else {
                 console.error('Failed to mark all notifications as read.');
             }
@@ -150,9 +155,7 @@
             });
             if (response.ok) {
                 console.log(`Notification ${notificationId} deleted.`);
-
-                // Refresh the page after deletion
-                window.location.reload();
+                await this.loadInitialNotifications();
             } else {
                 console.error('Failed to delete notification.');
             }
@@ -166,9 +169,9 @@
             const response = await fetch(`/Notification/DeleteAll`, { method: 'POST' });
             if (response.ok) {
                 console.log('All notifications deleted.');
-
-                // Refresh the page after deleting all notifications
-                window.location.reload();
+                await this.loadInitialNotifications();
+                this.unreadCount = 0;
+                this.updateUnreadBadge();
             } else {
                 console.error('Failed to delete all notifications.');
             }
@@ -214,5 +217,19 @@
         interval = seconds / 60;
         if (interval > 1) return Math.floor(interval) + ' minutes ago';
         return 'just now';
+    },
+
+    showToast: function (notification) {
+        // Add toast notification if needed
+        console.log('New notification received:', notification);
     }
 };
+
+// Initialize when the DOM is loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+        window.notificationSystem.init();
+    });
+} else {
+    window.notificationSystem.init();
+}

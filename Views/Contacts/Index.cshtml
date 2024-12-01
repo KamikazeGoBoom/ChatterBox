@@ -127,25 +127,37 @@
                 }, 500);
             });
 
-            $(document).on('click', '.add-contact', function() {
-                const userId = $(this).data('user-id');
-                const button = $(this);
-                button.prop('disabled', true);
+                    $(document).on('click', '.add-contact', function() {
+            const userId = $(this).data('user-id');
+            const button = $(this);
+            button.prop('disabled', true);
 
-                $.post('/Contacts/Add', { contactId: userId })
-                    .done(function(response) {
-                        if (response.success) {
-                            location.reload();
-                        } else {
-                            showError('Failed to add contact');
-                            button.prop('disabled', false);
-                        }
-                    })
-                    .fail(function() {
-                        showError('Failed to add contact');
+            // Create form data
+            const formData = new FormData();
+            formData.append('contactId', userId);
+
+            $.ajax({
+                url: '/Contacts/Add',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log('Server response:', response); // Debug log
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        showError(response.message || 'Failed to add contact');
                         button.prop('disabled', false);
-                    });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Ajax error:', { xhr, status, error }); // Debug log
+                    showError('Failed to add contact: ' + (xhr.responseJSON?.message || error));
+                    button.prop('disabled', false);
+                }
             });
+        });
 
             $(document).on('click', '.remove-contact', function() {
                 const userId = $(this).data('user-id');
