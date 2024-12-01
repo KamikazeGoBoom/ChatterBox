@@ -209,7 +209,9 @@
     },
 
     getTimeAgo: function (date) {
-        const seconds = Math.floor((new Date() - date) / 1000);
+        // Subtract pala dapat 8 hours for Philippines timezone
+        const adjustedDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+        const seconds = Math.floor((new Date() - adjustedDate) / 1000);
         let interval = seconds / 31536000;
         if (interval > 1) return Math.floor(interval) + ' years ago';
         interval = seconds / 2592000;
