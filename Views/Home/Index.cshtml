@@ -137,15 +137,30 @@
                 </div>
             </div>
             <div class="col-lg-3">
-                <div class="cta-card">
-                    <span class="get-started-badge">Get Started</span>
-                    <h2 class="h4 mb-3">Join ChatterBox Today</h2>
-                    <p class="text-muted mb-4">Sign up now to experience the future of communication.</p>
-                    <a href="/Identity/Account/Register" class="btn btn-primary w-100">
-                        <i class="bi bi-arrow-right-circle"></i>
-                        Register Now
-                    </a>
-                </div>
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <div class="cta-card">
+                        <span class="get-started-badge">Welcome Back</span>
+                        <h2 class="h4 mb-3">Ready to Chat?</h2>
+                        <p class="text-muted mb-4">Start connecting with your contacts or find new friends.</p>
+                        <a href="/Chat" class="btn btn-primary w-100">
+                            <i class="bi bi-chat-dots-fill"></i>
+                            Start Chatting
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="cta-card">
+                        <span class="get-started-badge">Get Started</span>
+                        <h2 class="h4 mb-3">Join ChatterBox Today</h2>
+                        <p class="text-muted mb-4">Sign up now to experience the future of communication.</p>
+                        <a href="/Identity/Account/Register" class="btn btn-primary w-100">
+                            <i class="bi bi-arrow-right-circle"></i>
+                            Register Now
+                        </a>
+                    </div>
+                }
             </div>
         </div>
     </div>
