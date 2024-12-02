@@ -55,13 +55,6 @@ namespace ChatterBox.Hubs
                         {
                             await Clients.Client(_userConnectionMap[contactId])
                                 .SendAsync("UserConnected", userId);
-
-                            await _notificationService.CreateNotificationAsync(
-                                contactId,
-                                "Contact Online",
-                                $"{user.UserName} is now online",
-                                "UserStatus"
-                            );
                         }
                     }
 
@@ -104,13 +97,6 @@ namespace ChatterBox.Hubs
                         {
                             await Clients.Client(_userConnectionMap[contactId])
                                 .SendAsync("UserDisconnected", userId);
-
-                            await _notificationService.CreateNotificationAsync(
-                                contactId,
-                                "Contact Offline",
-                                $"{user.UserName} has gone offline",
-                                "UserStatus"
-                            );
                         }
                     }
                 }

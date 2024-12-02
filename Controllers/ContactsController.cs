@@ -1,5 +1,6 @@
 ﻿using ChatterBox.Data;
 using ChatterBox.Models;
+using ChatterBox.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -13,15 +14,18 @@ namespace ChatterBox.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ContactsController> _logger;
+        private readonly INotificationService _notificationService;
 
         public ContactsController(
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
-            ILogger<ContactsController> logger)
+            ILogger<ContactsController> logger,
+            INotificationService notificationService)
         {
             _context = context;
             _userManager = userManager;
             _logger = logger;
+            _notificationService = notificationService;
         }
 
         public async Task<IActionResult> Index()
@@ -136,6 +140,15 @@ namespace ChatterBox.Controllers
                 _context.Contacts.Add(contact);
                 await _context.SaveChangesAsync();
 
+                // Send notification to the contact user
+                await _notificationService.CreateNotificationAsync(
+                    contactId,
+                    "New Contact Request",
+                    $"{currentUser.UserName} wants to add you as a contact",
+                    "ContactRequest",
+                    currentUser.Id
+                );
+
                 return Json(new { success = true, message = "Contact request sent" });
             }
             catch (Exception ex)
@@ -198,6 +211,15 @@ namespace ChatterBox.Controllers
 
                 _context.Contacts.Add(reciprocalContact);
                 await _context.SaveChangesAsync();
+
+                // Send notification to the user who sent the request
+                await _notificationService.CreateNotificationAsync(
+                    userId,
+                    "Contact Request Accepted",
+                    $"{currentUser.UserName} accepted your contact request",
+                    "ContactAccepted",
+                    currentUser.Id
+                );
 
                 return Json(new { success = true });
             }
