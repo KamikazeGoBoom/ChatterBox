@@ -102,7 +102,12 @@
                                     </div>
                                     <span>@member.User?.UserName</span>
                                 </div>
-                                <span class="badge bg-primary">@member.Role</span>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-primary">@member.Role</span>
+                                    <a asp-action="DirectMessage" asp-controller="Groups" asp-route-id="@member.UserId" class="btn btn-sm btn-outline-secondary ms-2">
+                                        <i class="bi bi-chat"></i> Direct Message
+                                    </a>
+                                </div>
                             </div>
                         }
                     </div>
@@ -232,10 +237,10 @@
             const now = new Date();
             const yesterday = new Date(now);
             yesterday.setDate(yesterday.getDate() - 1);
-            
+
             const isToday = messageDate.toDateString() === now.toDateString();
             const isYesterday = messageDate.toDateString() === yesterday.toDateString();
-            
+
             const time = messageDate.toLocaleTimeString('en-PH', {
                 timeZone: 'Asia/Manila',
                 hour: '2-digit',

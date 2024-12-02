@@ -663,6 +663,25 @@ namespace ChatterBox.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> DirectMessage(string id)
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            if (currentUser == null) return Challenge();
+
+            // Check if the user is in contacts
+            var isContact = await _context.Contacts
+                .AnyAsync(c => c.UserId == currentUser.Id && c.ContactUserId == id);
+
+            if (isContact)
+            {
+                return RedirectToAction("Index", "Chat", new { userId = id });
+            }
+
+            // If not a contact, redirect to contacts page
+            return RedirectToAction("Index", "Contacts");
+        }
+
         private bool GroupExists(int id)
         {
             return _context.Groups.Any(e => e.GroupId == id);
