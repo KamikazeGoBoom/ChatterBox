@@ -23,22 +23,38 @@
                     <div class="list-group">
                         @foreach (var member in Model.Members.OrderBy(m => m.User.UserName))
                         {
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-0">@member.User.UserName</h6>
-                                    <small class="text-muted">Joined: @member.JoinedAt.ToString("MMM dd, yyyy")</small>
-                                    @if (member.UserId == Model.CreatedById)
-                                    {
-                                        <span class="badge bg-primary ms-2">Creator</span>
-                                    }
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">@member.User.UserName</h6>
+                                        <small class="text-muted">Joined: @member.JoinedAt.ToString("MMM dd, yyyy")</small>
+                                        @if (member.UserId == Model.CurrentAdminId)
+                                        {
+                                            <span class="badge bg-primary ms-2">Admin</span>
+                                        }
+                                    </div>
+                                    <div class="btn-group">
+                                        @if (member.UserId != Model.CurrentAdminId)
+                                        {
+                                            @if (member.UserId != ViewBag.CurrentUserId)
+                                            {
+                                                <form asp-action="TransferAdmin" asp-route-groupId="@Model.GroupId" asp-route-newAdminId="@member.UserId"
+                                                      onsubmit="return confirm('Are you sure you want to transfer admin rights to this user?');" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-warning btn-sm">Make Admin</button>
+                                                </form>
+                                            }
+                                            <form asp-action="RemoveMember" asp-route-groupId="@Model.GroupId" asp-route-userId="@member.UserId"
+                                                  onsubmit="return confirm('Are you sure you want to remove this member?');" class="d-inline ms-2">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                                            </form>
+                                        }
+                                    </div>
                                 </div>
-                                @if (member.UserId != Model.CreatedById)
+                                @if (member.WasAdmin)
                                 {
-                                    <form asp-action="RemoveMember" asp-route-groupId="@Model.GroupId" asp-route-userId="@member.UserId"
-                                          onsubmit="return confirm('Are you sure you want to remove this member?');" class="d-inline">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-                                    </form>
+                                    <small class="text-muted d-block">Previously Admin: @member.StoppedBeingAdminAt?.ToString("MMM dd, yyyy")</small>
                                 }
                             </div>
                         }

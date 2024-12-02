@@ -34,13 +34,55 @@ namespace ChatterBox.Controllers
             return user != null && await _userManager.IsInRoleAsync(user, "SystemAdmin");
         }
 
-        private async Task<bool> IsGroupCreator(int groupId)
+        private async Task<bool> IsGroupAdmin(int groupId)
         {
             var currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null) return false;
 
             var group = await _context.Groups.FindAsync(groupId);
-            return group?.CreatedById == currentUser.Id;
+            return group?.CurrentAdminId == currentUser.Id || await IsSystemAdmin();
+        }
+
+        private async Task<GroupMember> GetOldestMember(int groupId, string excludeUserId)
+        {
+            return await _context.GroupMembers
+                .Where(m => m.GroupId == groupId && m.UserId != excludeUserId)
+                .OrderBy(m => m.JoinedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        private async Task TransferAdminRole(int groupId, string newAdminId)
+        {
+            var group = await _context.Groups
+                .Include(g => g.Members)
+                .FirstOrDefaultAsync(g => g.GroupId == groupId);
+
+            if (group != null)
+            {
+                // Update current admin's role and timestamps
+                var currentAdmin = group.Members.FirstOrDefault(m => m.UserId == group.CurrentAdminId);
+                if (currentAdmin != null)
+                {
+                    currentAdmin.Role = "Member";
+                    currentAdmin.WasAdmin = true;
+                    currentAdmin.StoppedBeingAdminAt = DateTime.UtcNow;
+                }
+
+                // Update new admin's role and timestamps
+                var newAdmin = group.Members.FirstOrDefault(m => m.UserId == newAdminId);
+                if (newAdmin != null)
+                {
+                    newAdmin.Role = "Admin";
+                    newAdmin.BecameAdminAt = DateTime.UtcNow;
+                }
+
+                // Update group's admin tracking
+                group.CurrentAdminId = newAdminId;
+                group.LastAdminTransferDate = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation($"Admin role transferred in group {groupId} to user {newAdminId}");
+            }
         }
 
         public async Task<IActionResult> Index()
@@ -55,25 +97,73 @@ namespace ChatterBox.Controllers
 
                 var isAdmin = await IsSystemAdmin();
 
-                // Admins can see all groups, others see only their accessible groups
                 var groups = isAdmin
                     ? await _context.Groups
                         .Include(g => g.CreatedBy)
+                        .Include(g => g.CurrentAdmin)
                         .Include(g => g.Members)
                         .ToListAsync()
                     : await _context.Groups
                         .Include(g => g.CreatedBy)
+                        .Include(g => g.CurrentAdmin)
                         .Include(g => g.Members)
                         .Where(g => !g.IsPrivate || g.Members.Any(m => m.UserId == currentUser.Id))
                         .ToListAsync();
 
-                ViewBag.IsSystemAdmin = isAdmin;
+                // Initialize all required ViewBag properties
+                ViewBag.IsSystemAdmin = isAdmin;                    // Make sure this is set
+                ViewBag.CurrentUserId = currentUser.Id;            // Make sure this is set
                 return View(groups);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving groups");
+                // Initialize ViewBag even in error case
+                ViewBag.IsSystemAdmin = false;
+                ViewBag.CurrentUserId = null;
                 return View(Array.Empty<Group>());
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TransferAdmin(int groupId, string newAdminId)
+        {
+            try
+            {
+                var group = await _context.Groups
+                    .Include(g => g.Members)
+                    .FirstOrDefaultAsync(g => g.GroupId == groupId);
+
+                if (group == null)
+                {
+                    return NotFound();
+                }
+
+                var currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null)
+                {
+                    return Challenge();
+                }
+
+                if (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin())
+                {
+                    return Forbid();
+                }
+
+                var newAdminMember = group.Members.FirstOrDefault(m => m.UserId == newAdminId);
+                if (newAdminMember == null)
+                {
+                    return BadRequest("New admin must be a group member");
+                }
+
+                await TransferAdminRole(groupId, newAdminId);
+                return RedirectToAction(nameof(Details), new { id = groupId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error transferring admin role in group {groupId}");
+                return RedirectToAction(nameof(Details), new { id = groupId });
             }
         }
 
@@ -86,6 +176,7 @@ namespace ChatterBox.Controllers
 
             var group = await _context.Groups
                 .Include(g => g.CreatedBy)
+                .Include(g => g.CurrentAdmin)
                 .Include(g => g.Members)
                     .ThenInclude(m => m.User)
                 .FirstOrDefaultAsync(m => m.GroupId == id);
@@ -103,9 +194,8 @@ namespace ChatterBox.Controllers
 
             var isMember = group.Members.Any(m => m.UserId == currentUser.Id);
             var isSystemAdmin = await IsSystemAdmin();
-            var isCreator = group.CreatedById == currentUser.Id;
+            var isAdmin = group.CurrentAdminId == currentUser.Id;
 
-            // Allow system admins to view any group
             if (group.IsPrivate && !isMember && !isSystemAdmin)
             {
                 return Forbid();
@@ -121,15 +211,13 @@ namespace ChatterBox.Controllers
 
             ViewBag.CurrentUserId = currentUser.Id;
             ViewBag.IsMember = isMember;
-            ViewBag.IsAdmin = isCreator;
+            ViewBag.IsAdmin = isAdmin;
             ViewBag.IsSystemAdmin = isSystemAdmin;
-            ViewBag.IsCreator = isCreator;
             ViewBag.Messages = messages;
 
             return View(group);
         }
 
-        // Group creator member management
         public async Task<IActionResult> ManageMembers(int id)
         {
             var group = await _context.Groups
@@ -148,21 +236,19 @@ namespace ChatterBox.Controllers
                 return Challenge();
             }
 
-            if (group.CreatedById != currentUser.Id && !await IsSystemAdmin())
+            if (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin())
             {
                 return Forbid();
             }
 
-            // Get IDs of users who are already members
             var memberIds = group.Members.Select(m => m.UserId).ToList();
-
-            // Get users who are not members
             var nonMembers = await _userManager.Users
                 .Where(u => !memberIds.Contains(u.Id))
                 .ToListAsync();
 
             ViewBag.NonMembers = nonMembers;
             ViewBag.IsSystemAdmin = await IsSystemAdmin();
+            ViewBag.CurrentUserId = currentUser.Id;
             return View(group);
         }
 
@@ -186,7 +272,7 @@ namespace ChatterBox.Controllers
                     return Challenge();
                 }
 
-                if (group.CreatedById != currentUser.Id && !await IsSystemAdmin())
+                if (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin())
                 {
                     return Forbid();
                 }
@@ -238,15 +324,15 @@ namespace ChatterBox.Controllers
                     return NotFound();
                 }
 
-                if (group.CreatedById != currentUser.Id && !await IsSystemAdmin())
+                if (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin())
                 {
                     return Forbid();
                 }
 
-                // Don't allow removal of the group creator
-                if (userId == group.CreatedById)
+                // Don't allow removal of the current admin
+                if (userId == group.CurrentAdminId)
                 {
-                    return BadRequest("Cannot remove the group creator");
+                    return BadRequest("Cannot remove the current admin. Transfer admin role first.");
                 }
 
                 _context.GroupMembers.Remove(membership);
@@ -260,29 +346,6 @@ namespace ChatterBox.Controllers
                 _logger.LogError(ex, $"Error removing user from group {groupId}");
                 return RedirectToAction(nameof(ManageMembers), new { id = groupId });
             }
-        }
-
-        [Authorize(Roles = "SystemAdmin")]
-        public async Task<IActionResult> ManageUsers(int id)
-        {
-            var group = await _context.Groups
-                .Include(g => g.Members)
-                    .ThenInclude(m => m.User)
-                .FirstOrDefaultAsync(g => g.GroupId == id);
-
-            if (group == null)
-            {
-                return NotFound();
-            }
-
-            var memberIds = group.Members.Select(m => m.UserId).ToList();
-            var nonMembers = await _userManager.Users
-                .Where(u => !memberIds.Contains(u.Id))
-                .ToListAsync();
-
-            ViewBag.NonMembers = nonMembers;
-            ViewBag.IsSystemAdmin = true;
-            return View("ManageMembers", group);
         }
 
         public IActionResult Create()
@@ -314,6 +377,8 @@ namespace ChatterBox.Controllers
                     IsPrivate = groupInput.IsPrivate,
                     CreatedById = currentUser.Id,
                     CreatedBy = currentUser,
+                    CurrentAdminId = currentUser.Id,
+                    CurrentAdmin = currentUser,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -326,6 +391,7 @@ namespace ChatterBox.Controllers
                     UserId = currentUser.Id,
                     Role = "Admin",
                     JoinedAt = DateTime.UtcNow,
+                    BecameAdminAt = DateTime.UtcNow,
                     User = currentUser,
                     Group = group
                 };
@@ -350,20 +416,29 @@ namespace ChatterBox.Controllers
                 return NotFound();
             }
 
-            var group = await _context.Groups.FindAsync(id);
+            var group = await _context.Groups
+                .Include(g => g.Members)
+                .FirstOrDefaultAsync(g => g.GroupId == id);
+
             if (group == null)
             {
                 return NotFound();
             }
 
+            // Updated permission check to use CurrentAdminId
             var currentUser = await _userManager.GetUserAsync(User);
-            var isSystemAdmin = await IsSystemAdmin();
-
-            if (currentUser == null || (!isSystemAdmin && group.CreatedById != currentUser.Id))
+            if (currentUser == null || (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin()))
             {
                 return Forbid();
             }
 
+            // Get list of members for admin transfer dropdown
+            var members = group.Members
+                .Where(m => m.UserId != currentUser.Id)
+                .Select(m => m.User)
+                .ToList();
+
+            ViewBag.PotentialAdmins = members;
             return View(group);
         }
 
@@ -382,10 +457,9 @@ namespace ChatterBox.Controllers
                 return NotFound();
             }
 
+            // Updated permission check to use CurrentAdminId
             var currentUser = await _userManager.GetUserAsync(User);
-            var isSystemAdmin = await IsSystemAdmin();
-
-            if (currentUser == null || (!isSystemAdmin && existingGroup.CreatedById != currentUser.Id))
+            if (currentUser == null || (existingGroup.CurrentAdminId != currentUser.Id && !await IsSystemAdmin()))
             {
                 return Forbid();
             }
@@ -423,6 +497,7 @@ namespace ChatterBox.Controllers
 
             var group = await _context.Groups
                 .Include(g => g.CreatedBy)
+                .Include(g => g.CurrentAdmin)
                 .Include(g => g.Members)
                 .FirstOrDefaultAsync(m => m.GroupId == id);
 
@@ -432,9 +507,7 @@ namespace ChatterBox.Controllers
             }
 
             var currentUser = await _userManager.GetUserAsync(User);
-            var isSystemAdmin = await IsSystemAdmin();
-
-            if (currentUser == null || (!isSystemAdmin && group.CreatedById != currentUser.Id))
+            if (currentUser == null || (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin()))
             {
                 return Forbid();
             }
@@ -458,9 +531,7 @@ namespace ChatterBox.Controllers
                 }
 
                 var currentUser = await _userManager.GetUserAsync(User);
-                var isSystemAdmin = await IsSystemAdmin();
-
-                if (currentUser == null || (!isSystemAdmin && group.CreatedById != currentUser.Id))
+                if (currentUser == null || (group.CurrentAdminId != currentUser.Id && !await IsSystemAdmin()))
                 {
                     return Forbid();
                 }
@@ -480,7 +551,7 @@ namespace ChatterBox.Controllers
                 _context.Groups.Remove(group);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Group {id} successfully deleted by {(isSystemAdmin ? "System Admin" : "group creator")} {currentUser.Id}");
+                _logger.LogInformation($"Group {id} successfully deleted by {currentUser.Id}");
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
@@ -501,6 +572,7 @@ namespace ChatterBox.Controllers
                 {
                     return NotFound();
                 }
+
                 var currentUser = await _userManager.GetUserAsync(User);
                 if (currentUser == null)
                 {
@@ -549,11 +621,35 @@ namespace ChatterBox.Controllers
                     return Challenge();
                 }
 
+                var group = await _context.Groups
+                    .Include(g => g.Members)
+                    .FirstOrDefaultAsync(g => g.GroupId == id);
+
+                if (group == null)
+                {
+                    return NotFound();
+                }
+
                 var membership = await _context.GroupMembers
                     .FirstOrDefaultAsync(gm => gm.GroupId == id && gm.UserId == currentUser.Id);
 
                 if (membership != null)
                 {
+                    // If leaving user is admin, transfer admin role to oldest member
+                    if (group.CurrentAdminId == currentUser.Id)
+                    {
+                        var oldestMember = await GetOldestMember(id, currentUser.Id);
+                        if (oldestMember != null)
+                        {
+                            await TransferAdminRole(id, oldestMember.UserId);
+                        }
+                        else
+                        {
+                            // If no other members, delete the group
+                            return await DeleteConfirmed(id);
+                        }
+                    }
+
                     _context.GroupMembers.Remove(membership);
                     await _context.SaveChangesAsync();
                 }
