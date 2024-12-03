@@ -7,20 +7,17 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel for both local and production
+// Configure Kestrel
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     if (builder.Environment.IsDevelopment())
     {
-        serverOptions.ListenLocalhost(5094);  // HTTP
-        serverOptions.ListenLocalhost(7264, listenOptions =>  // HTTPS
-        {
-            listenOptions.UseHttps();
-        });
+        serverOptions.ListenLocalhost(5094);
+        serverOptions.ListenLocalhost(7264, listenOptions => listenOptions.UseHttps());
     }
     else
     {
-        serverOptions.ListenAnyIP(8080); // For production
+        serverOptions.ListenAnyIP(8080);
     }
     serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(2);
     serverOptions.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(1);
@@ -106,7 +103,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
     app.UseDeveloperExceptionPage();
-    app.UseHttpsRedirection(); // Only use HTTPS in development
+    app.UseHttpsRedirection();
 }
 else
 {
