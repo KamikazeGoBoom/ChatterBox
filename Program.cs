@@ -7,14 +7,21 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel
+// Configure Kestrel for both local and production
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.ListenLocalhost(5094);  // HTTP
-    serverOptions.ListenLocalhost(7264, listenOptions =>  // HTTPS
+    if (builder.Environment.IsDevelopment())
     {
-        listenOptions.UseHttps();
-    });
+        serverOptions.ListenLocalhost(5094);  // HTTP
+        serverOptions.ListenLocalhost(7264, listenOptions =>  // HTTPS
+        {
+            listenOptions.UseHttps();
+        });
+    }
+    else
+    {
+        serverOptions.ListenAnyIP(8080); // For production
+    }
     serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(2);
     serverOptions.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(1);
 });
@@ -35,12 +42,12 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options => {
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.AllowedForNewUsers = true;
 })
-    .AddRoles<IdentityRole>() // Added Role support
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 // Add Services
 builder.Services.AddScoped<INotificationService, NotificationService>();
-builder.Services.AddScoped<AdminInitializationService>(); // Added AdminInitializationService
+builder.Services.AddScoped<AdminInitializationService>();
 
 // Add Authorization Policies
 builder.Services.AddAuthorization(options =>
@@ -99,11 +106,11 @@ if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
     app.UseDeveloperExceptionPage();
+    app.UseHttpsRedirection(); // Only use HTTPS in development
 }
 else
 {
     app.UseExceptionHandler("/Home/Error");
-    app.UseHsts();
 }
 
 // Global error handling
@@ -126,7 +133,6 @@ app.Use(async (context, next) =>
     }
 });
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("CorsPolicy");

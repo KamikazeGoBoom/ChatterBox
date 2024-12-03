@@ -1,0 +1,6 @@
+C:\Users\Kamikaze\Documents\GitHub\ChatterBox\wwwroot\js\audioService.js
+C:\Users\Kamikaze\Documents\GitHub\ChatterBox\wwwroot\sounds\add.mp3
+C:\Users\Kamikaze\Documents\GitHub\ChatterBox\wwwroot\sounds\background.mp3
+C:\Users\Kamikaze\Documents\GitHub\ChatterBox\wwwroot\sounds\messageReceived.mp3
+C:\Users\Kamikaze\Documents\GitHub\ChatterBox\wwwroot\sounds\messageSent.mp3
+C:\Users\Kamikaze\Documents\GitHub\ChatterBox\wwwroot\sounds\notif.mp3
