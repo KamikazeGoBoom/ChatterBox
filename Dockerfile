@@ -1,12 +1,14 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Install SQLite package globally
+COPY . .
+
+# Install tools and packages
 RUN dotnet new tool-manifest
 RUN dotnet tool install --local dotnet-ef
 RUN dotnet add package Microsoft.EntityFrameworkCore.Sqlite
 
-COPY . .
+# Build and publish
 RUN dotnet restore
 RUN dotnet publish -c Release -o /app
 
